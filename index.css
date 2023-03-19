@@ -1,0 +1,13 @@
+.absContainer {
+  position: relative;
+  top: 0;
+  left: 0;
+}
+.abs {
+  position: absolute;
+  top: 0px;
+  left: 0px;
+}
+svg.abs {
+  width: 100%;
+}
