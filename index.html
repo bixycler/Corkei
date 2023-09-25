@@ -9,11 +9,41 @@
 
 <h1>CoKi</h1>
 <p>Circles of Knowledge & information</p>
-<div id="graphicsContainer" class="absContainer">
-  <svg id="mainSVG" class="abs" viewBox="-300 -300 600 600" style="border:solid 3px grey;"></svg>
-  <p class="abs">a paragraph<br>next line</p>
-  <button class="abs">Press me!</button>
-  
-</div>
+
+<div id="viewCtrlContainer" class="Flexbox" style="flex-wrap: nowrap;">
+
+
+<div id="indexViewCtrl" class="FlexItemResizable" style="min-width: 100px; max-width: 200px; border-right: 2px solid gray;">
+  <!-- indexViewCtrl = intent = obop -->
+  <div id="breadcrumbs" class="Flexbox Head HScrollable" style="flex-wrap: nowrap; overflow-x: scroll; overflow-y: hidden;">
+    <div class="Button">1 one</div> <span style="color: gray;">&nbsp;⟩&nbsp;</span>
+    <div class="Button">2 two</div> <span style="color: gray;">&nbsp;⟩&nbsp;</span>
+    <div class="Button">3 three</div> &nbsp;⟩&nbsp;
+    <div class="Button">4 four</div> >
+    <div class="Button">5 five</div> >
+    <div class="Button">6 six</div> >
+  </div>
+  <script type="module">
+    scrollRightAll(breadcrumbs);
+  </script>
+</div><!-- indexViewCtrl -->
+
+<div id="centralViewCtrl" class="FlexItemResizable" style="min-width: 200px; border-right: 3px solid gray;">
+  <!-- centralViewCtrl = content -->
+  <select id="currentView" class="Head">
+    <option value="History">History</option>
+    <option value="Routine" selected>Routine</option>
+    <option value="Data">Data</option>
+    <option value="...">...</option>
+  </select>
+  text
+</div><!-- centralViewCtrl -->
+
+<div id="productViewCtrl" class="FlexItem">
+  <!-- productViewCtrl = extent = product = rendered result = image -->
+</div><!-- viewCtrlContainer -->
+
+</div><!-- productViewCtrl -->
+
 </body>
 </html>
