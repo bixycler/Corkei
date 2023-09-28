@@ -14,7 +14,7 @@
 
 
 <div id="indexViewCtrl" class="FlexItemResizable" style="min-width: 100px; max-width: 200px; border-right: 2px solid gray;">
-  <!-- indexViewCtrl = intent = obop -->
+  <!-- indexViewCtrl = intent = obop = branching structure -->
   <div id="breadcrumbs" class="Flexbox Head HScrollable" style="flex-wrap: nowrap; overflow-x: scroll; overflow-y: hidden;">
     <div class="Button">1 one</div> <span style="color: gray;">&nbsp;⟩&nbsp;</span>
     <div class="Button">2 two</div> <span style="color: gray;">&nbsp;⟩&nbsp;</span>
@@ -26,24 +26,44 @@
   <script type="module">
     scrollRightAll(breadcrumbs);
   </script>
+  <ul>
+    <li>1</li>
+    <li>2 <ul>
+      <li>2.1</li>
+      <li>2.2</li>
+      <li>2.3</li>
+    </ul></li>
+    <li>3</li>
+    <li>4</li>
+  </ul>
 </div><!-- indexViewCtrl -->
 
 <div id="centralViewCtrl" class="FlexItemResizable" style="min-width: 200px; border-right: 3px solid gray;">
-  <!-- centralViewCtrl = content -->
+  <!-- centralViewCtrl = content = linear thread -->
   <select id="currentView" class="Head">
     <option value="History">History</option>
     <option value="Routine" selected>Routine</option>
     <option value="Data">Data</option>
     <option value="...">...</option>
   </select>
-  text
+  text<br>
+  next<br>
+  line<br>
+  and more...<br>
 </div><!-- centralViewCtrl -->
 
 <div id="productViewCtrl" class="FlexItem">
-  <!-- productViewCtrl = extent = product = rendered result = image -->
+  <!-- productViewCtrl = extent = circle (module, grain, particle) = rendered result = image -->
+  <select id="currentRenderer" class="Head">
+    <option value="HTML" selected>HTML</option>
+    <option value="Markdown">Markdown</option>
+    <option value="Pre-Text">Preformatted Text</option>
+    <option value="...">...</option>
+  </select>
+  The <i>redered <b>product</b></i> may look like this.
 </div><!-- viewCtrlContainer -->
 
-</div><!-- productViewCtrl -->
+</div><!-- viewCtrlContainer -->
 
 </body>
 </html>

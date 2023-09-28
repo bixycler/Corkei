@@ -14,8 +14,8 @@ window.scrollRightAll = scrollRightAll;
 const breadcrumbs = document.getElementById("breadcrumbs");
 breadcrumbs.addEventListener("wheel", function (e) {
     // Map the vertical scroll (e.deltaY) to the horizontal scroll (e.deltaX with Shift-Scroll)
-    if (e.deltaY != 0) this.scrollLeft += e.deltaY * 0.2;
-});
+    if (e.deltaY !== 0) this.scrollLeft += e.deltaY * 0.2;
+}, {passive: true});
 
 const indexViewCtrl = document.getElementById("indexViewCtrl");
 const resizeObsvr = new ResizeObserver(function (es) {
