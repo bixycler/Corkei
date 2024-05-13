@@ -1,0 +1,1 @@
+From `QuickLog` to `Corkei`, my ideas for graph noting has not yet implemented. So, now i use the pre-built app Obsidian first.
