@@ -10,21 +10,25 @@
 </head>
 <body>
 
-<input type="checkbox" id="fixedRoot" name="fixedRoot" checked>
-<label for="fixedRoot">Fixed Root</label>
-&emsp;&emsp;&emsp;
+<input type="checkbox" id="fixedBase" name="fixedBase" checked>
+<label for="fixedBase">Fixed Base</label>
+&emsp;&emsp;
 <label for="numSegs">Number of Segments:
   <output id="numSegsOutput" name="numSegsOutput" style="display: inline-block; width: 1em;">10</output>
 </label>
 <input type="range" id="numSegs" name="numSegs" min="1" max="30" value="10"
   oninput="this.previousElementSibling.firstElementChild.value = this.value">
+&emsp;
+<input type="checkbox" id="shadow" name="shadow">
+<label for="shadow">Shadow</label>
+
 <div id="twoCanvas"></div>
 <script type="module" src="FabrikDemo-TwoJS.js"></script>
 <p>
   Instruction:
   <ul>
     <li><b>Drag</b> the tip (red-circled end) to see the effect 😉.</li>
-    <li>Its root (the other end) can be released by unchecking “Fixed Root”.</li>
+    <li>Its base (the other end) can be released by unchecking “Fixed Base”.</li>
     <li>Number of segments: Increase to see smoother transformation; Decrease to see its mechanism, esp. the basic with a single segment.</li>
     <li>Hold <b>Ctrl</b> key down to keep the old position unchanged.</li>
     <li>For more details, see the Explantion below.</li>
