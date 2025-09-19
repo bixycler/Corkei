@@ -1,0 +1,83 @@
+<svg version="1.1" width="600" height="400" style="overflow: hidden;"
+  viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100%" height="100%" fill="DimGray"/>
+    <defs />
+    <g id="two-0" transform="matrix(1 0 0 1 0 0)" opacity="1">
+        <path transform="matrix(1 0 0 1 150 300)" d="M -10 -10 L 10 -10 L 10 10 L -10 10 Z "
+            fill="blue" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-1" />
+        <path transform="matrix(1 0 0 1 380 53)"
+            d="M 10 0 C 10 5.522847 5.522847 10 0 10 C -5.522848 10 -10 5.522847 -10 0 C -10.000001 -5.522848 -5.522848 -10 -0.000001 -10 C 5.522847 -10.000001 10 -5.522848 10 0 Z "
+            fill="blue" stroke="red" stroke-width="2" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-2" />
+        <path transform="matrix(1 0 0 1 0 0)"
+            d="M 150 300 L 241.283589 259.167337 L 317.704376 194.670335 L 357.956948 103.129467 "
+            fill="none" stroke="Gray" stroke-width="4" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-3" />
+        <path transform="matrix(1 0 0 1 0 0)"
+            d="M 190.319332 274.238604 L 274.587231 220.396973 L 339.747427 144.540867 L 380 53 "
+            fill="none" stroke="DodgerBlue" stroke-width="4" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-4" />
+        <path transform="matrix(1 0 0 1 150 300)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="Black" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-38" />
+        <path transform="matrix(1 0 0 1 190.319335 274.238616)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="cyan" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-39" />
+        <path transform="matrix(1 0 0 1 150 300)" d="M 0 0 L 40.319332 -25.761396 " fill="none"
+            stroke="Gray" stroke-width="2" stroke-opacity="1" fill-opacity="1" visibility="hidden"
+            stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dasharray="4"
+            stroke-dashoffset="0" id="two-40" />
+        <path transform="matrix(1 0 0 1 241.283584 259.167327)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="Black" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-41" />
+        <path transform="matrix(1 0 0 1 274.587219 220.396972)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="cyan" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-42" />
+        <path transform="matrix(1 0 0 1 250 300)" d="M -8.716411 -40.832663 L 24.587231 -79.603027 "
+            fill="none" stroke="Gray" stroke-width="2" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            stroke-dasharray="4" stroke-dashoffset="0" id="two-43" />
+        <path transform="matrix(1 0 0 1 317.704376 194.670333)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="Black" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-44" />
+        <path transform="matrix(1 0 0 1 339.747436 144.540863)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="cyan" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-45" />
+        <path transform="matrix(1 0 0 1 350 300)"
+            d="M -32.295624 -105.329665 L -10.252573 -155.459133 " fill="none" stroke="Gray"
+            stroke-width="2" stroke-opacity="1" fill-opacity="1" visibility="hidden"
+            stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dasharray="4"
+            stroke-dashoffset="0" id="two-46" />
+        <path transform="matrix(1 0 0 1 357.956939 103.12947)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="Black" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-47" />
+        <path transform="matrix(1 0 0 1 380 53)"
+            d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+            fill="cyan" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+            visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            id="two-48" />
+        <path transform="matrix(1 0 0 1 450 300)" d="M -92.043052 -196.870533 L -70 -247 "
+            fill="none" stroke="DimGray" stroke-width="2" stroke-opacity="1" fill-opacity="1"
+            visibility="hidden" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+            stroke-dasharray="4" stroke-dashoffset="0" id="two-49" />
+    </g>
+</svg>

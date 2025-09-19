@@ -22,7 +22,6 @@ const two = new Two({
   autostart: true,
 }).appendTo(twoContainer);
 const twoDom = two.renderer.domElement;
-const twoBox = twoDom.getBoundingClientRect();
 
 // --- kinematic chain setup ---
 const size = 20;
@@ -32,8 +31,8 @@ let numSegments = numSegs.value;
 let segLength = chainLength/numSegments;
 const base = two.makeRectangle(center.x, center.y, size, size);
   base.fill = 'blue'; base.noStroke();
-const tip = two.makeCircle(center.x + chainLength, center.y, size/2);
-  tip.fill = 'blue'; tip.stroke = 'red'; tip.linewidth = 2;
+const target = two.makeCircle(center.x + chainLength, center.y, size/2);
+  target.fill = 'blue'; target.stroke = 'red'; target.linewidth = 2;
 const joints = [], jointNodes = [], ojoints = [], ojointNodes = [];
 const oline = two.makePath(joints, /*open path*/ true);
   oline.stroke = 'Gray'; oline.linewidth = 4; oline.noFill(); oline.visible = shadow.checked;
@@ -53,7 +52,7 @@ function setupKinematicChain(numSegs){
     projs.pop().remove();
   }
   // set up new chains
-  tip.position.set(center.x + chainLength, center.y, size/2);
+  target.position.set(center.x + chainLength, center.y, size/2);
   oline.visible = shadow.checked;
   for (let i = 0; i <= numSegments; i++) {
     // last chain
@@ -152,7 +151,7 @@ function updateKinematicChain(hold){
 
   // Handle the current chain
   if(dragging){
-    fabrik(mouse, fixedBase.checked);
+    fabrik(target.position, fixedBase.checked);
     for (let i in line.vertices) {
       line.vertices[i].x = joints[i].x - line.position.x;
       line.vertices[i].y = joints[i].y - line.position.y;
@@ -166,6 +165,24 @@ function updateKinematicChain(hold){
 //two.bind('update', updateKinematicChain)//.play();
 // Note: Moved from Two's tick-based animation to mouse-event-based animation
 
+const serializer = new XMLSerializer();
+saveImage.addEventListener('click', (e)=>{
+  // update download filename
+  let suffix = (fixedBase.checked ? '-fixedBase' : '') + (shadow.checked ? '-sahdow' : '');
+  downloadImage.download = `FabrikDemo-${numSegments}-${targetCoords.value.replace(' ','')}${suffix}.svg`
+  // serialize the SVG element
+  const svgString = serializer.serializeToString(twoDom);
+  downloadImage.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+  // then click it!
+  downloadImage.click();
+});
+
+targetCoords.addEventListener('change', (e)=>{
+  updateTarget(true, false);
+  let odragging = dragging; dragging = true;
+  updateKinematicChain(false);
+  dragging = odragging;
+});
 
 ////// Mouse interaction \\\\\\\\
 
@@ -179,21 +196,34 @@ function mouseup(e) {
 }
 
 function mousedown(e) {
-  mouse.set(e.clientX - twoBox.left, e.clientY - twoBox.top);
+  let twoBox = twoDom.getBoundingClientRect();
+  mouse.set(e.clientX, e.clientY);
   //console.debug(e, mouse);
-  let bound = twoBox; //tip.getBoundingClientRect();
+  let bound = twoBox; //target.getBoundingClientRect();
   dragging = mouse.x > bound.left && mouse.x < bound.right
     && mouse.y > bound.top && mouse.y < bound.bottom;
-  if (dragging) { tip.position.copy(mouse); }
+  updateTarget(fixedTarget.checked, dragging)
+  //console.debug('mousedown: dragging=',dragging,'mouse:',mouse,'bound:',bound);
   twoDom.addEventListener('mousemove', mousemove);
   twoDom.addEventListener('mouseup', mouseup);
   updateKinematicChain(e.ctrlKey);
 }
 
 function mousemove(e) {
-  mouse.set(e.clientX - twoBox.left, e.clientY - twoBox.top);
-  if (dragging) { tip.position.copy(mouse); }
+  mouse.set(e.clientX, e.clientY);
+  updateTarget(fixedTarget.checked, dragging)
   updateKinematicChain(e.ctrlKey);
+}
+
+function updateTarget(fixed, dragging) {
+  let twoBox = twoDom.getBoundingClientRect();
+  if(fixed){
+    const coords = targetCoords.value.split(',');
+    target.position.set(coords[0], coords[1]);
+  }else{
+    if (dragging) { target.position.set(Math.round(mouse.x - twoBox.x), Math.round(mouse.y - twoBox.y)); }
+    targetCoords.value = target.position;
+  }
 }
 
 twoDom.addEventListener('mouseup', mouseup);

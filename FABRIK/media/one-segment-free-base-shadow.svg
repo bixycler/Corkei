@@ -1,0 +1,63 @@
+<svg version="1.1" width="600" height="400" style="overflow: hidden;"
+  viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0" y="0" width="100%" height="100%" fill="DimGray"/>
+  <defs>
+    <marker
+      id="arrowhead"
+      viewBox="0 0 10 10"
+      refX="5"
+      refY="5"
+      markerWidth="6"
+      markerHeight="6"
+      orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z"  fill="Orange" stroke="Orange"/>
+    </marker>
+  </defs>
+  <g id="two-0" transform="matrix(1 0 0 1 0 0)" opacity="1">
+    <path transform="matrix(1 0 0 1 150 300)" d="M -10 -10 L 10 -10 L 10 10 L -10 10 Z "
+      fill="blue" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-1"></path>
+    <path transform="matrix(1 0 0 1 539 41)"
+      d="M 10 0 C 10 5.522847 5.522847 10 0 10 C -5.522848 10 -10 5.522847 -10 0 C -10.000001 -5.522848 -5.522848 -10 -0.000001 -10 C 5.522847 -10.000001 10 -5.522848 10 0 Z "
+      fill="blue" stroke="red" stroke-width="2" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-2"></path>
+    <path transform="matrix(1 0 0 1 0 0)" d="M 150 300 L 450 300 " fill="none" stroke="Gray"
+      stroke-width="4" stroke-opacity="1" fill-opacity="1" visibility="visible"
+      stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" id="two-3"></path>
+    <path transform="matrix(1 0 0 1 0 0)" d="M 289.286195 207.26189 L 539 41 " fill="none"
+      stroke="DodgerBlue" stroke-width="4" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-4"></path>
+    <path transform="matrix(1 0 0 1 150 300)"
+      d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+      fill="Black" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-197"></path>
+    <path transform="matrix(1 0 0 1 289.286193 207.261886)"
+      d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+      fill="cyan" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-198"></path>
+    <path transform="matrix(1 0 0 1 150 300)" d="M 0 0 L 139.286195 -92.73811 " fill="none"
+      stroke="Gray" stroke-width="2" stroke-opacity="1" fill-opacity="1" visibility="visible"
+      stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dasharray="4"
+      stroke-dashoffset="0" id="two-199"></path>
+    <path transform="matrix(1 0 0 1 450 300)"
+      d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+      fill="Black" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-200"></path>
+    <path transform="matrix(1 0 0 1 539 41)"
+      d="M 5 0 C 5 2.761423 2.761423 5 0 5 C -2.761424 5 -5 2.761423 -5 0 C -5.000001 -2.761424 -2.761424 -5 -0.000001 -5 C 2.761423 -5.000001 5 -2.761424 5 0 Z "
+      fill="cyan" stroke="none" stroke-width="0" stroke-opacity="1" fill-opacity="1"
+      visibility="visible" stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4"
+      id="two-201"></path>
+    <path transform="matrix(1 0 0 1 450 300)" d="M 0 0 L 85 -245 " fill="none" stroke="Orange"
+      stroke-width="2" stroke-opacity="1" fill-opacity="1" visibility="visible"
+      stroke-linecap="butt" stroke-linejoin="miter" stroke-miterlimit="4" stroke-dasharray="4"
+      stroke-dashoffset="0" id="two-202"
+      marker-end="url(#arrowhead)"></path>
+  </g>
+</svg>
