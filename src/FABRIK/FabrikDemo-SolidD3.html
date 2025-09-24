@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>FABRIK Chain</title>
+  <style>
+    #d3Canvas :first-child { margin: 0; background: DimGray; }
+    canvas { display: block; }
+    body {
+      max-width: 800px;
+      margin: 10px auto 30px; /* left-right = auto for centering page */
+    }
+    iframe {
+      border: 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<input type="checkbox" id="fixedBase" name="fixedBase" checked>
+<label for="fixedBase">Fixed Base</label>
+&emsp;&emsp;
+<label for="numSegs">Number of Segments:
+  <output id="numSegsOutput" name="numSegsOutput" style="display: inline-block; width: 1em;">10</output>
+</label>
+<input type="range" id="numSegs" name="numSegs" min="1" max="30" value="10"
+  oninput="this.previousElementSibling.firstElementChild.value = this.value">
+&emsp;
+<input type="checkbox" id="shadow" name="shadow" checked>
+<label for="shadow">Shadow</label>
+
+<div id="d3Canvas"></div>
+<script type="module" src="FabrikDemo-SolidD3.js"></script>
+
+<label for="targetCoords">Target: </label>
+<input type="text" id="targetCoords" name="targetCoords" size="7">
+<input type="checkbox" id="fixedTarget" name="fixedTarget">
+<label for="fixedTarget">Fixed Target</label>
+&emsp;&emsp;
+<button id="saveImage">Save Image</button>
+<a id="downloadImage" download="FabrikDemo.svg" hidden></a>
+
+<p>
+  Instruction:
+  <ul>
+    <li><b>Drag</b> the tip <span style="color:red;">◉</span> (red-circled end) to see the effect 😉. This tip is the end effector which will (try to) follow the red-circled target.</li>
+    <li>Its base (the other end) can be released by unchecking “Fixed Base”.</li>
+    <li>Number of segments: Increase to see smoother transformation; Decrease to see its mechanism, esp. the basic with a single segment.</li>
+    <li>The last position can be shown as a shadow chain (<a href="https://en.wikipedia.org/wiki/Ghosting_(television)">ghost</a>) by checking “Shadow”.</li>
+    <li>Hold <b>Ctrl</b> key down to keep the last position unchanged.</li>
+    <li>For more details, see the Explantion below.</li>
+  </ul>
+</p>
+
+<details id="Explanation"><summary>Explantion</summary>
+  <iframe id="FabrikExplanation" src="FabrikExplanation.html" width="100%" height="100%"></iframe>
+</details>
+<script src="window-message-channel.js"></script>
+<script> syncHeight(Explanation, FabrikExplanation); </script>
+
+</body>
+</html>

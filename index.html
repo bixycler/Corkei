@@ -1,66 +1,13 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <title>Corkei — Circuit of referential knowledge & effective information</title>
-  <script type="module" src="index.js"></script>
-  <link rel="stylesheet" href="index.css">
-</head>
-<body>
-
-<div id="viewCtrlContainer" class="Flexbox" style="flex-wrap: nowrap;">
-
-
-<div id="indexViewCtrl" class="FlexItemResizable" style="min-width: 100px; max-width: 200px; border-right: 2px solid gray;">
-  <!-- indexViewCtrl = intent = obop = branching structure -->
-  <div id="breadcrumbs" class="Flexbox Head HScrollable" style="flex-wrap: nowrap; overflow-x: scroll; overflow-y: hidden;">
-    <div class="Button">1 one</div> <span style="color: gray;">&nbsp;⟩&nbsp;</span>
-    <div class="Button">2 two</div> <span style="color: gray;">&nbsp;⟩&nbsp;</span>
-    <div class="Button">3 three</div> &nbsp;⟩&nbsp;
-    <div class="Button">4 four</div> >
-    <div class="Button">5 five</div> >
-    <div class="Button">6 six</div> >
-  </div>
-  <script type="module">
-    scrollRightAll(breadcrumbs);
-  </script>
-  <ul>
-    <li>1</li>
-    <li>2 <ul>
-      <li>2.1</li>
-      <li>2.2</li>
-      <li>2.3</li>
-    </ul></li>
-    <li>3</li>
-    <li>4</li>
-  </ul>
-</div><!-- indexViewCtrl -->
-
-<div id="centralViewCtrl" class="FlexItemResizable" style="min-width: 200px; border-right: 3px solid gray;">
-  <!-- centralViewCtrl = content = linear thread -->
-  <select id="currentView" class="Head">
-    <option value="History">History</option>
-    <option value="Routine" selected>Routine</option>
-    <option value="Data">Data</option>
-    <option value="...">...</option>
-  </select>
-  text<br>
-  next<br>
-  line<br>
-  and more...<br>
-</div><!-- centralViewCtrl -->
-
-<div id="productViewCtrl" class="FlexItem">
-  <!-- productViewCtrl = extent = circle (module, grain, particle) = rendered result = image -->
-  <select id="currentRenderer" class="Head">
-    <option value="HTML" selected>HTML</option>
-    <option value="Markdown">Markdown</option>
-    <option value="Pre-Text">Preformatted Text</option>
-    <option value="...">...</option>
-  </select>
-  The <i>redered <b>product</b></i> may look like this.
-</div><!-- viewCtrlContainer -->
-
-</div><!-- viewCtrlContainer -->
-
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="src/media/Unitorus.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Corkei</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/index.tsx"> </script>
+  </body>
 </html>
