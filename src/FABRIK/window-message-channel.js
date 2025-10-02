@@ -1,23 +1,33 @@
-// Update height of <details> following the embedded page
-function syncHeight(dtails, ifrm) {
+/**
+ * Update height of <details> following the embedded page
+ * @type {import('./window-message-channel.d.ts').syncHeight}
+ */
+export function syncHeight(details, iframe) {
   const channel = new MessageChannel(), remotePort = [channel.port2], localPort = channel.port1;
   // Transfer message port to iframe
-  dtails.addEventListener('toggle', (e)=>{
+  details.addEventListener('toggle', (e)=>{
     try {
-      dtails.open && ifrm.contentWindow.postMessage("Transferring message port", "*", remotePort);
-    }catch(ex){ !ex.message.match('neutered') && console.debug('Error transferring message port: ',ex); }
+      details.open && iframe.contentWindow && iframe.contentWindow.postMessage("Transferring message port", "*", remotePort);
+    }catch(ex){
+      if (ex instanceof Error) {
+        !ex.message.match('neutered') && console.debug('Error transferring message port: ', ex);
+      }
+    }
   });
   // Receive message from iframe
   localPort.onmessage = (event)=>{
     //console.debug('localPort: ',event);
-    if (event.data.pageHeight && ifrm) {
-      ifrm.style.height = `${event.data.pageHeight + 100}px`;
+    if (event.data.pageHeight && iframe) {
+      iframe.style.height = `${event.data.pageHeight + 100}px`;
     }
   };
 }
 
-// Inform the container about the height of this embedded page
-function responseHeight(pageId) {
+/**
+ * Inform the container about the height of this embedded page
+ * @type {import('./window-message-channel.d.ts').responseHeight}
+*/
+export function responseHeight(pageId) {
   let contentHeight = -1; // document.body.offsetHeight; // getBoundingClientRect().height;
   let messagePort = null;
 

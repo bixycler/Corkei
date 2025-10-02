@@ -15,7 +15,7 @@
 <body>
 
 <p>
-This applet shows the non-iterative version of <a href="http://www.andreasaristidou.com/FABRIK.html">Forward And Backward Reaching Inverse Kinematics (FABRIK)</a>, which comprises only two passes (backward and forward propagation) for the fixed base chain, and only one pass (backward propagation) for the free base chain. The one-pass version is the <a href="https://dl.acm.org/doi/10.1007/s00371-003-0226-y">“Follow-the-Leader” technique</a> floating in the air before 2004.
+This applet shows the non-iterative version of <a href="http://www.andreasaristidou.com/FABRIK.html" target="__blank">Forward And Backward Reaching Inverse Kinematics (FABRIK)</a>, which comprises only two passes (backward and forward propagation) for the fixed base chain, and only one pass (backward propagation) for the free base chain. The one-pass version is the <a href="https://dl.acm.org/doi/10.1007/s00371-003-0226-y" target="__blank">“Follow-the-Leader” technique</a> floating in the air before 2004.
 </p>
 
 <h3>Basic Case: a Free Rod</h3>
@@ -65,8 +65,10 @@ a living monument, held dear.<br>
 </p>
 </details>
 
-<script src="window-message-channel.js"></script>
-<script>responseHeight('FabrikExplanation.html')</script>
+<script type="module">
+  import {responseHeight} from './window-message-channel.js'
+  responseHeight('FabrikExplanation.html')
+</script>
 
 </body>
 </html>
