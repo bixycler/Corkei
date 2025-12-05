@@ -12,7 +12,7 @@ Today I draw its motion here,
 a living monument, held dear.
 */
 
-import Two from 'https://cdn.skypack.dev/two.js@latest';
+import Two from 'https://cdnjs.cloudflare.com/ajax/libs/two.js/0.8.0/two.min.js';
 
 // --- Setup Two.js ---
 const twoContainer = twoCanvas;
@@ -25,61 +25,61 @@ const twoDom = two.renderer.domElement;
 
 // --- kinematic chain setup ---
 const size = 20;
-const center = new Two.Vector(two.width/4, two.height/2);
-const chainLength = two.width/2;
+const center = new Two.Vector(two.width / 4, two.height / 2);
+const chainLength = two.width / 2;
 let numSegments = numSegs.value;
-let segLength = chainLength/numSegments;
+let segLength = chainLength / numSegments;
 const base = two.makeRectangle(center.x, center.y, size, size);
-  base.fill = 'blue'; base.noStroke();
-const target = two.makeCircle(center.x + chainLength, center.y, size/2);
-  target.fill = 'blue'; target.stroke = 'red'; target.linewidth = 2;
+base.fill = 'blue'; base.noStroke();
+const target = two.makeCircle(center.x + chainLength, center.y, size / 2);
+target.fill = 'blue'; target.stroke = 'red'; target.linewidth = 2;
 const joints = [], jointNodes = [], ojoints = [], ojointNodes = [];
 const oline = two.makePath(joints, /*open path*/ true);
-  oline.stroke = 'Gray'; oline.linewidth = 4; oline.noFill(); oline.visible = shadow.checked;
+oline.stroke = 'Gray'; oline.linewidth = 4; oline.noFill(); oline.visible = shadow.checked;
 const line = two.makePath(joints, /*open path*/ true);
-  line.stroke = 'DodgerBlue'; line.linewidth = 4; line.noFill();
+line.stroke = 'DodgerBlue'; line.linewidth = 4; line.noFill();
 let onHold = false;
 const projs = []; // projection lines from the last chain to the current chain
 
 // initialize a straight chain
-function setupKinematicChain(numSegs){
+function setupKinematicChain(numSegs) {
   numSegments = numSegs;
-  segLength = chainLength/numSegments;
+  segLength = chainLength / numSegments;
   // clear remaining chains
-  while(joints.length){
+  while (joints.length) {
     joints.pop(); jointNodes.pop().remove(); line.vertices.pop();
     ojoints.pop(); ojointNodes.pop().remove(); oline.vertices.pop();
     projs.pop().remove();
   }
   // set up new chains
-  target.position.set(center.x + chainLength, center.y, size/2);
+  target.position.set(center.x + chainLength, center.y, size / 2);
   oline.visible = shadow.checked;
   for (let i = 0; i <= numSegments; i++) {
     // last chain
-    let oc = two.makeCircle(center.x + i*segLength, center.y, size/4);
-      oc.fill = 'Black'; oc.noStroke(); oc.visible = shadow.checked;
+    let oc = two.makeCircle(center.x + i * segLength, center.y, size / 4);
+    oc.fill = 'Black'; oc.noStroke(); oc.visible = shadow.checked;
     ojointNodes.push(oc); ojoints.push(oc.position);
     let oa = new Two.Anchor(oc.position.x, oc.position.y);
     oline.vertices.push(oa);
     // current chain
-    let c = two.makeCircle(oc.position.x, oc.position.y, size/4);
-      c.fill = 'cyan'; c.noStroke();
+    let c = two.makeCircle(oc.position.x, oc.position.y, size / 4);
+    c.fill = 'cyan'; c.noStroke();
     jointNodes.push(c); joints.push(c.position);
     let a = new Two.Anchor(c.position.x, c.position.y);
     line.vertices.push(a);
     // projection lines
     let prj = two.makePath([oa.clone(), a.clone()], /*open path*/ true)
     prj.stroke = 'Gray'; prj.linewidth = 2; prj.noFill(); prj.dashes = [4]; prj.visible = shadow.checked;
-    if(i == numSegments){ prj.stroke = 'DimGray' }
+    if (i == numSegments) { prj.stroke = 'DimGray' }
     projs.push(prj);
   }
   // console.log(line.vertices) // relative positions!
 }
 setupKinematicChain(numSegs.value);
-numSegs.addEventListener('change', (e)=>{setupKinematicChain(numSegs.value);});
-shadow.addEventListener('change', (e)=>{
+numSegs.addEventListener('change', (e) => { setupKinematicChain(numSegs.value); });
+shadow.addEventListener('change', (e) => {
   oline.visible = shadow.checked;
-  for(let i in joints){
+  for (let i in joints) {
     ojointNodes[i].visible = projs[i].visible = shadow.checked;
   }
 });
@@ -93,13 +93,13 @@ function fabrik(target, forward) {
   // last chain --> current chain whose tip = target
   joints[joints.length - 1].set(target.x, target.y);
   for (let i = joints.length - 2; i >= 0; i--) {
-    let dx = joints[i+1].x - ojoints[i].x;
-    let dy = joints[i+1].y - ojoints[i].y;
+    let dx = joints[i + 1].x - ojoints[i].x;
+    let dy = joints[i + 1].y - ojoints[i].y;
     let dist = Math.hypot(dx, dy);
     let r = segLength / dist;
     joints[i].set(
-      (1-r)*joints[i+1].x + r*ojoints[i].x,
-      (1-r)*joints[i+1].y + r*ojoints[i].y
+      (1 - r) * joints[i + 1].x + r * ojoints[i].x,
+      (1 - r) * joints[i + 1].y + r * ojoints[i].y
     );
   }
 
@@ -108,22 +108,22 @@ function fabrik(target, forward) {
   // current chain whose tip = target --> current chain whose base = center (fixed)
   joints[0].set(center.x, center.y);
   for (let i = 1; i < joints.length; i++) {
-    let dx = joints[i-1].x - joints[i].x;
-    let dy = joints[i-1].y - joints[i].y;
+    let dx = joints[i - 1].x - joints[i].x;
+    let dy = joints[i - 1].y - joints[i].y;
     let dist = Math.hypot(dx, dy);
     let r = segLength / dist;
     joints[i].set(
-      (1-r)*joints[i-1].x + r*joints[i].x,
-      (1-r)*joints[i-1].y + r*joints[i].y
+      (1 - r) * joints[i - 1].x + r * joints[i].x,
+      (1 - r) * joints[i - 1].y + r * joints[i].y
     );
   }
 }
 
-function updateKinematicChain(hold){
+function updateKinematicChain(hold) {
   // Handle the last chain
-  if(!onHold){ // When not on hold, i.e. last chain released
+  if (!onHold) { // When not on hold, i.e. last chain released
     // copy the current chain to the last chain
-    for(let i in joints){
+    for (let i in joints) {
       ojoints[i].copy(joints[i]);
       oline.vertices[i].x = ojoints[i].x - oline.position.x;
       oline.vertices[i].y = ojoints[i].y - oline.position.y;
@@ -131,26 +131,28 @@ function updateKinematicChain(hold){
       projs[i].vertices[0].y = ojoints[i].y - projs[i].position.y;
     }
   }
-  if(hold){
+  if (hold) {
     //console.debug('hold!');
-    if(!onHold){ onHold = true; // put the last chain on hold (visible)
+    if (!onHold) {
+      onHold = true; // put the last chain on hold (visible)
       oline.visible = true;
-      for(let i in joints){
+      for (let i in joints) {
         ojointNodes[i].visible = projs[i].visible = true;
       }
-      console.log('Hold: ('+ ojoints.join('); (')+')');
+      console.log('Hold: (' + ojoints.join('); (') + ')');
     }
-  }else if(onHold){ onHold = false; // release (hide) the last chain
-    if(!shadow.checked){
+  } else if (onHold) {
+    onHold = false; // release (hide) the last chain
+    if (!shadow.checked) {
       oline.visible = false;
-      for(let i in joints){
+      for (let i in joints) {
         ojointNodes[i].visible = projs[i].visible = false;
       }
     }
   }
 
   // Handle the current chain
-  if(dragging){
+  if (dragging) {
     fabrik(target.position, fixedBase.checked);
     for (let i in line.vertices) {
       line.vertices[i].x = joints[i].x - line.position.x;
@@ -166,10 +168,10 @@ function updateKinematicChain(hold){
 // Note: Moved from Two's tick-based animation to mouse-event-based animation
 
 const serializer = new XMLSerializer();
-saveImage.addEventListener('click', (e)=>{
+saveImage.addEventListener('click', (e) => {
   // update download filename
   let suffix = (fixedBase.checked ? '-fixedBase' : '') + (shadow.checked ? '-sahdow' : '');
-  downloadImage.download = `FabrikDemo-${numSegments}-${targetCoords.value.replace(' ','')}${suffix}.svg`
+  downloadImage.download = `FabrikDemo-${numSegments}-${targetCoords.value.replace(' ', '')}${suffix}.svg`
   // serialize the SVG element
   const svgString = serializer.serializeToString(twoDom);
   downloadImage.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
@@ -177,7 +179,7 @@ saveImage.addEventListener('click', (e)=>{
   downloadImage.click();
 });
 
-targetCoords.addEventListener('change', (e)=>{
+targetCoords.addEventListener('change', (e) => {
   updateTarget(true, false);
   let odragging = dragging; dragging = true;
   updateKinematicChain(false);
@@ -217,10 +219,10 @@ function mousemove(e) {
 
 function updateTarget(fixed, dragging) {
   let twoBox = twoDom.getBoundingClientRect();
-  if(fixed){
+  if (fixed) {
     const coords = targetCoords.value.split(',');
     target.position.set(coords[0], coords[1]);
-  }else{
+  } else {
     if (dragging) { target.position.set(Math.round(mouse.x - twoBox.x), Math.round(mouse.y - twoBox.y)); }
     targetCoords.value = target.position;
   }
@@ -236,7 +238,7 @@ export default function FabrikDemo() {
   // Interface
   const self = {
     // Fields:
-    get name(){ return 'FabrikDemo'; },
+    get name() { return 'FabrikDemo'; },
     two, mouse,
     joints, jointNodes, line,
     ojoints, ojointNodes, oline, projs,
@@ -247,4 +249,4 @@ export default function FabrikDemo() {
 }
 
 // Also export to globalThis
-Object.assign(globalThis, {FabrikDemo});
+Object.assign(globalThis, { FabrikDemo });
