@@ -1,0 +1,72 @@
+<html>
+  <title>JSON-LD Test</title>
+  <body>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsonld/8.3.3/jsonld.min.js"></script>
+    JSON-LD: <br>
+    <textarea id=jsonldText cols="100" rows="30"></textarea>
+    <script>
+      (async ()=>{
+        schemaOrgContext = await (await fetch('jsonldcontext.json')).json(); // https://schema.org/docs/jsonldcontext.json
+        console.log('schemaOrgContext:', schemaOrgContext);
+        schemaOrgVocabulary = await (await fetch('schemaorg-current-https.jsonld')).json(); // https://schema.org/version/latest/schemaorg-current-https.jsonld
+        console.log('schemaOrgVocabulary:', schemaOrgVocabulary);
+
+        // define a mapping of context URL => context doc
+        const CONTEXTS = {
+          "https://schema.org/": schemaOrgContext,
+          "http://schema.org/": schemaOrgContext,
+        };
+
+        // grab the built-in document loader
+        const builtinDocumentLoader = jsonld.documentLoaders.xhr(); //.node(); //.xhr();
+
+        // change the default document loader
+        jsonld.documentLoader = async (url, options) => {
+          if(url in CONTEXTS) {
+            console.debug(url,'->',CONTEXTS[url]);
+            return {
+              contextUrl: null, // this is for a context via a link header
+              document: CONTEXTS[url], // this is the actual document that was loaded
+              documentUrl: url // this is the actual context URL after redirects
+            };
+          }
+          // call the built-in documentLoader
+          return builtinDocumentLoader(url, options);
+        };
+
+
+      })();
+
+      class JsonLdBuilder {
+        constructor(context) {
+          this.context = context;
+          this.nodes = new Map();
+        }
+
+        node(id, type) {
+          if (!this.nodes.has(id)) this.nodes.set(id, { "@id": id, "@type": type });
+          return this.nodes.get(id);
+        }
+
+        addTriple(subjectId, predicate, object) {
+          const subj = this.node(subjectId);
+          subj[predicate] = subj[predicate] || [];
+          subj[predicate].push(object);
+        }
+
+        toJson() {
+          return { "@context": this.context, "@graph": [...this.nodes.values()] };
+        }
+      }
+
+
+      jsonldText.addEventListener('input', async (e)=>{
+        jld = JSON.parse(jsonldText.value);
+        console.log("jld:", jld);
+        expanded = await jsonld.expand(jld);
+        console.log("expanded:", expanded);
+      })
+
+    </script>
+  </body>
+</html>
