@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="utf-8" />
   <title>FABRIK Explantion</title>
@@ -14,61 +15,82 @@
 
 <body>
 
-<p>
-This applet shows the non-iterative version of <a href="http://www.andreasaristidou.com/FABRIK.html" target="__blank">Forward And Backward Reaching Inverse Kinematics (FABRIK)</a>, which comprises only two passes (backward and forward propagation) for the fixed base chain, and only one pass (backward propagation) for the free base chain. The one-pass version is the <a href="https://dl.acm.org/doi/10.1007/s00371-003-0226-y" target="__blank">“Follow-the-Leader” technique</a> floating in the air before 2004.
-</p>
+  <p>
+    This applet shows the non-iterative version of <a href="http://www.andreasaristidou.com/FABRIK.html"
+      target="__blank">Forward And Backward Reaching Inverse Kinematics (FABRIK)</a>, which comprises only two passes
+    (backward and forward propagation) for the fixed base chain, and only one pass (backward propagation) for the free
+    base chain. The one-pass version is the <a href="https://dl.acm.org/doi/10.1007/s00371-003-0226-y"
+      target="__blank">“Follow-the-Leader” technique</a> floating in the air before 2004.
+  </p>
 
-<h3>Basic Case: a Free Rod</h3>
+  <h3>Basic Case: a Free Rod</h3>
 
-<img src="media/one-segment-free-base-shadow.svg">
-<p>
-  When a single-segment chain (a rod) is pulled at one end (effector) from P<sub>1</sub> to P<sub>1</sub>', the other end P<sub>0</sub> just follows P<sub>1</sub>' to move to P<sub>0</sub>' due to the length constraint of the segment. That means <b>P<sub>0</sub>' lies on the line P<sub>0</sub>P<sub>1</sub>'</b>.
-</p>
+  <img src="assets/one-segment-free-base-shadow.svg">
+  <p>
+    When a single-segment chain (a rod) is pulled at one end (effector) from P<sub>1</sub> to P<sub>1</sub>', the other
+    end P<sub>0</sub> just follows P<sub>1</sub>' to move to P<sub>0</sub>' due to the length constraint of the segment.
+    That means <b>P<sub>0</sub>' lies on the line P<sub>0</sub>P<sub>1</sub>'</b>.
+  </p>
 
-<h3>Backward Propagation on a Free Chain</h3>
+  <h3>Backward Propagation on a Free Chain</h3>
 
-<img src="media/three-segments-free-base-shadow.svg">
-<p>
-  When a 3-segment chain is pulled at its tip from P<sub>3</sub> to P<sub>3</sub>', the third segment P<sub>2</sub>P<sub>3</sub>' just follows P<sub>3</sub>' like a free rod in the basic case, then the second segment P<sub>1</sub>P<sub>2</sub>' follows P<sub>2</sub>', and the first segment P<sub>0</sub>P<sub>1</sub>' follows P<sub>1</sub>'. The same for other multi-segment chains. This <b>propagation of change from the tip back to the base</b> is the backward pass in FABRIK.
-</p>
+  <img src="assets/three-segments-free-base-shadow.svg">
+  <p>
+    When a 3-segment chain is pulled at its tip from P<sub>3</sub> to P<sub>3</sub>', the third segment
+    P<sub>2</sub>P<sub>3</sub>' just follows P<sub>3</sub>' like a free rod in the basic case, then the second segment
+    P<sub>1</sub>P<sub>2</sub>' follows P<sub>2</sub>', and the first segment P<sub>0</sub>P<sub>1</sub>' follows
+    P<sub>1</sub>'. The same for other multi-segment chains. This <b>propagation of change from the tip back to the
+      base</b> is the backward pass in FABRIK.
+  </p>
 
 
-<h3>Backward & Forward Propagation on a Fixed Base Chain</h3>
+  <h3>Backward & Forward Propagation on a Fixed Base Chain</h3>
 
-<img src="media/three-segments-fixed-base-shadow.svg">
-<p>
-  A 3-segment chain with its base fixed will <b>reflects the backward propagation</b> at the base so that <i>the change propagates from the base toward to the tip</i>. That means from the intermediate position of the previous case, the chain is pulled at its base toward the fixed center, then the first segment follows, and the second, third segments, too. The same for other multi-segment chains. This forward pass from the base to the tip, together with the previous backward pass, close the loop of one iteration in FABRIK.
-</p>
+  <img src="assets/three-segments-fixed-base-shadow.svg">
+  <p>
+    A 3-segment chain with its base fixed will <b>reflects the backward propagation</b> at the base so that <i>the
+      change propagates from the base toward to the tip</i>. That means from the intermediate position of the previous
+    case, the chain is pulled at its base toward the fixed center, then the first segment follows, and the second, third
+    segments, too. The same for other multi-segment chains. This forward pass from the base to the tip, together with
+    the previous backward pass, close the loop of one iteration in FABRIK.
+  </p>
 
-<h3>FABRIK: Iterative Backward–Forward Propagation until Equilibrium</h3>
+  <h3>FABRIK: Iterative Backward–Forward Propagation until Equilibrium</h3>
 
-<video muted autoplay src="media/three-segments-iterative.webm" width="600" height="400" controls>
-  Your browser does not support the video tag.
-</video>
-<p>
-  Repeating the backward–forward propagation until equilibrium, we have the FABRIK algorithm. When the target is reachable, i.e. the chain length is greater than the distance to the target, FABRIK converges to the target position which is static. Otherwise, it converges to a straight chain oscillating between two ends (the target and the fixed center).
-</p>
+  <video muted autoplay src="assets/three-segments-iterative.webm" width="600" height="400" controls>
+    Your browser does not support the video tag.
+  </video>
+  <p>
+    Repeating the backward–forward propagation until equilibrium, we have the FABRIK algorithm. When the target is
+    reachable, i.e. the chain length is greater than the distance to the target, FABRIK converges to the target position
+    which is static. Otherwise, it converges to a straight chain oscillating between two ends (the target and the fixed
+    center).
+  </p>
 
-<details>
-<summary><h3>⛩️ Monument to the Ancestor 🕌</h3></summary>
+  <details>
+    <summary>
+      <h3>⛩️ Monument to the Ancestor 🕌</h3>
+    </summary>
 
-<p>
-In Macromedia Flash I saw,<br>
-a chain that reached, then yielded, raw.<br>
-No force was named, no sums were done,<br>
-just step by step till rest was won.<br>
-</p><p>
-Simple strokes, yet deeply true,<br>
-the wave that flows, the world I knew.<br>
-Today I draw its motion here,<br>
-a living monument, held dear.<br>
-</p>
-</details>
+    <p>
+      In Macromedia Flash I saw,<br>
+      a chain that reached, then yielded, raw.<br>
+      No force was named, no sums were done,<br>
+      just step by step till rest was won.<br>
+    </p>
+    <p>
+      Simple strokes, yet deeply true,<br>
+      the wave that flows, the world I knew.<br>
+      Today I draw its motion here,<br>
+      a living monument, held dear.<br>
+    </p>
+  </details>
 
-<script type="module">
-  import {responseHeight} from './window-message-channel.js'
-  responseHeight('FabrikExplanation.html')
-</script>
+  <script type="module">
+    import { responseHeight } from './window-message-channel.js'
+    responseHeight('FabrikExplanation.html')
+  </script>
 
 </body>
+
 </html>
