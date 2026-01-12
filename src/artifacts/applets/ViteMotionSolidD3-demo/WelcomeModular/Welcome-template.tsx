@@ -3,16 +3,16 @@ import * as d3 from "d3";
 import Counter from "./Welcome-counter";
 import SvgDemo from "./Welcome-svg";
 
-import viteLogo from './assets/vite.svg'
-import solidLogo from './assets/solid.svg'
-import motionLogo from './assets/motion.svg'
-import d3Logo from './assets/d3.svg'
-import './Welcome.css'
+import viteLogo from '../assets/vite.svg'
+import solidLogo from '../assets/solid.svg'
+import motionLogo from '../assets/motion.svg'
+import d3Logo from '../assets/d3.svg'
+import '../assets/Welcome.css'
 
 export default (p: {
   count: () => number;
   setCount: (updater: (c: number) => number) => void;
-  scale: d3.ScaleLinear<number,number>;
+  scale: d3.ScaleLinear<number, number>;
   color: (c: number) => string;
 }) => (<>
   <div>
@@ -32,7 +32,7 @@ export default (p: {
   <h1>Vite Motion <i>Solid</i> D3</h1>
   <h3>The framework for <i>solid data-driven documents</i> enriched with quick motion</h3>
   <div class="card">
-    <Counter count={p.count} setCount={p.setCount} color={p.color} /><br/>
+    <Counter count={p.count} setCount={p.setCount} color={p.color} /><br />
     <SvgDemo count={p.count} scale={p.scale} color={p.color} />
     <p>
       <a href="https://solidjs.com" target="_blank">Solid</a> for reactivity,&ensp;

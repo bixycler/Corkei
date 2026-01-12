@@ -2,11 +2,10 @@
 import { render } from 'solid-js/web'
 import './index.css'
 
-import ViteMotionSolidD3Demo from './ViteMotionSolidD3-demo/Welcome.tsx'
-import ViteMotionSolidD3DemoModular from './ViteMotionSolidD3-demo/Welcome-app.tsx'
-import EffectFlow from './Reactivity/EffectFlow.tsx'
-import FabrikDemoSolidD3 from './FABRIK/FabrikDemo-SolidD3'
+//import Welcome from './artifacts/applets/ViteMotionSolidD3-demo/Welcome/Welcome.tsx'
+//import WelcomeModular from './artifacts/applets/ViteMotionSolidD3-demo/WelcomeModular/Welcome-app.tsx'
+import FabrikDemoSolidSvg from './artifacts/applets/FABRIK/FabrikDemo-SolidSvg/FabrikDemo-SolidSvg.tsx'
 
 const root = document.getElementById('root')
 
-render(() => <FabrikDemoSolidD3 />, root!)
+render(() => <FabrikDemoSolidSvg explanationUrl="./src/artifacts/applets/FABRIK/FabrikExplanation.html" />, root!)

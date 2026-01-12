@@ -1,4 +1,5 @@
 import { createMemo, createEffect, createSignal, type Accessor, type Setter } from "solid-js";
+import { render } from 'solid-js/web'
 
 // Circular *Side* Effect Flow
 function selfDependency(max: number) {
@@ -32,11 +33,11 @@ function circularDependency(max: Accessor<number>) {
   return [init, setInit, aMemo, bMemo] as const;
 }
 
-export default () => {
+export default function EffectFlow() {
   const [maxV, setMaxV] = createSignal(2826); // 2826, 9572
   const [v, setV] = createSignal(0);
 
-  const [maxA, setMaxA] = createSignal(Math.floor(10e5 / 3) - 1); // signal.ts: if (Updates!.length > 10e5) if (IS_DEV) throw new Error("Potential Infinite Loop Detected.");
+  const [maxA, setMaxA] = createSignal(Math.floor(10e5 / 3) - 1); // signal.ts: if (Updates!.length > 10e5) if (IS_DEV) throw new Error("Potential Infinite Loop Detected."); https://github.com/solidjs/solid/blob/main/packages/solid/src/reactive/signal.ts#L1355
   const [init, setInit, aMemo, bMemo] = circularDependency(maxA);
 
   return (
@@ -58,3 +59,17 @@ export default () => {
     </div>
   )
 }
+
+
+// Also export this component as a custom element for direct vanilla use without Solid's render()
+class EffectFlowElement extends HTMLElement {
+  connectedCallback() {
+    const shadowRoot = this.attachShadow({ mode: "open" });
+    render(() => <EffectFlow />, shadowRoot);
+  }
+  disconnectedCallback() {
+    // clean up, if any...
+  }
+}
+customElements.define("effect-flow", EffectFlowElement);
+//console.debug(`customElements.get('effect-flow'): ${customElements.get('effect-flow')}`)

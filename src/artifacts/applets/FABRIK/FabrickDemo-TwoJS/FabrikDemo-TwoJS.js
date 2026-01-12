@@ -12,7 +12,7 @@ Today I draw its motion here,
 a living monument, held dear.
 */
 
-import Two from 'https://cdnjs.cloudflare.com/ajax/libs/two.js/0.8.0/two.min.js';
+import Two from 'https://cdnjs.cloudflare.com/ajax/libs/two.js/0.8.0/two.module.js';
 
 // --- Setup Two.js ---
 const twoContainer = twoCanvas;

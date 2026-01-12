@@ -15,14 +15,15 @@ a living monument, held dear.
 import { createSignal, onMount, onCleanup } from "solid-js";
 import { render } from 'solid-js/web'
 
-import { FabrikContext, newFabrikContext } from "./FabrikDemo-SolidD3/FabrikContext";
-import FabrikCanvas from "./FabrikDemo-SolidD3/FabrikCanvas";
-import FabrikControls from "./FabrikDemo-SolidD3/FabrikControls";
+import { FabrikContext, newFabrikContext } from "./FabrikContext";
+import FabrikCanvas from "./FabrikCanvas";
+import FabrikControls from "./FabrikControls";
 
-import { syncHeight } from './window-message-channel';
-import css from "./fabrik.css?inline";
 
-export default function FabrikDemoSolidD3() {
+import { syncHeight } from '../window-message-channel';
+import css from "../assets/fabrik.css?inline";
+
+export default function FabrikDemoSolidSvg(props: { explanationUrl?: string }) {
 
   let Explanation!: HTMLDetailsElement;
   let FabrikExplanation!: HTMLIFrameElement;
@@ -77,7 +78,7 @@ export default function FabrikDemoSolidD3() {
 
         <details ref={Explanation} style="margin-top:2em;">
           <summary>Explantion</summary>
-          <iframe ref={FabrikExplanation} src={new URL("./FabrikExplanation.html", import.meta.url).href}
+          <iframe ref={FabrikExplanation} src={props.explanationUrl || "../FabrikExplanation.html"}
             style="border:0;"
             width="100%" height="100%"></iframe>
         </details>
@@ -88,14 +89,15 @@ export default function FabrikDemoSolidD3() {
 
 
 // Also export this component as a custom element for direct vanilla use without Solid's render()
-class FabrikDemoSolidD3Element extends HTMLElement {
+class FabrikDemoSolidSvgElement extends HTMLElement {
   connectedCallback() {
     const shadowRoot = this.attachShadow({ mode: "open" });
-    render(() => <FabrikDemoSolidD3 />, shadowRoot);
+    const explanationUrl = this.getAttribute("explanation-url") || undefined;
+    render(() => <FabrikDemoSolidSvg explanationUrl={explanationUrl} />, shadowRoot);
   }
   disconnectedCallback() {
     // clean up, if any...
   }
 }
-customElements.define("fabrik-demo-solid-3d", FabrikDemoSolidD3Element);
-//console.debug(`customElements.get('fabrik-demo-solid-3d'): ${customElements.get('fabrik-demo-solid-3d')}`)
+customElements.define("fabrik-demo-solid-svg", FabrikDemoSolidSvgElement);
+//console.debug(`customElements.get('fabrik-demo-solid-svg'): ${customElements.get('fabrik-demo-solid-svg')}`)

@@ -7,6 +7,7 @@
     "dev": "vite",
     "dev:hmr": "VITE_HMR=true vite",
     "build": "tsc -b && vite build",
+    "build:debug": "tsc -b && vite build --debug",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -17,7 +18,9 @@
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",
+    "@types/glob": "^8.1.0",
     "@types/node": "^25.0.6",
+    "glob": "^13.0.0",
     "typescript": "~5.8.3",
     "vite": "^7.1.7",
     "vite-plugin-solid": "^2.11.8"
