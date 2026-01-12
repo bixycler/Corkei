@@ -5,5 +5,8 @@
     //"target": "es2020", // Specify JavaScript target version
     "module": "esnext" // Specify module system
   },
-  "include": ["src/**/*.js", "src/**/*.d.ts"] // Specify files to include
+  "include": [
+    "src/**/*.js",
+    "src/**/*.d.ts"
+  ] // Specify files to include
 }
