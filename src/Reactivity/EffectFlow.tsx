@@ -1,4 +1,4 @@
-import { createMemo, createEffect, createSignal, type Accessor } from "solid-js";
+import { createMemo, createEffect, createSignal, type Accessor, type Setter } from "solid-js";
 
 // Circular *Side* Effect Flow
 function selfDependency(max: number) {
@@ -18,18 +18,18 @@ function selfDependency(max: number) {
 function circularDependency(max: Accessor<number>) {
   const [init, setInit] = createSignal(true);
 
-  const aMemo = createMemo((prev): number => {
+  const aMemo = createMemo<number>((prev) => {
     if (init()) return 0;
-    if (prev && (prev < 10 || prev > max() - 100)) console.log(`aMemo: ${prev}`);
+    if (prev < 10 || prev > max() - 100) console.log(`aMemo: ${prev}`);
     return prev < max() ? bMemo() + 1 : prev;
-  });
-  const bMemo = createMemo((prev): number => {
+  }, 0);
+  const bMemo = createMemo<number>((prev) => {
     if (init()) return 0;
-    if (prev && (prev < 10 || prev > max() - 100)) console.log(`bMemo: ${prev}`);
+    if (prev < 10 || prev > max() - 100) console.log(`bMemo: ${prev}`);
     return prev < max() ? aMemo() + 1 : prev;
-  });
+  }, 0);
 
-  return [init, setInit, aMemo, bMemo];
+  return [init, setInit, aMemo, bMemo] as const;
 }
 
 export default () => {

@@ -9,4 +9,4 @@ import FabrikDemoSolidD3 from './FABRIK/FabrikDemo-SolidD3'
 
 const root = document.getElementById('root')
 
-render(() => <EffectFlow />, root!)
+render(() => <FabrikDemoSolidD3 />, root!)
