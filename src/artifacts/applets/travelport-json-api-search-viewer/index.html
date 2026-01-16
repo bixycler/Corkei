@@ -1,8 +1,209 @@
+<!DOCTYPE html>
 <html>
 
+<head>
+  <meta charset="UTF-8">
+  <title>Travelport JSON API Search Viewer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+
+    #controls {
+      margin-bottom: 10px;
+    }
+
+    #jsontxt {
+      width: 100%;
+      height: 100px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    #gui-root {
+      overflow-x: auto;
+    }
+
+    /* Messages UI */
+    #messages-root {
+      margin: 10px 0;
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      background: #fff;
+      display: none;
+    }
+
+    .msg-group {
+      border-bottom: 1px solid #eee;
+    }
+
+    .msg-group:last-child {
+      border-bottom: none;
+    }
+
+    .msg-header {
+      cursor: pointer;
+      padding: 8px 15px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8f9fa;
+    }
+
+    .msg-content {
+      padding: 5px 15px 10px 15px;
+      font-family: monospace;
+      font-size: 0.9em;
+      white-space: pre-wrap;
+    }
+
+    .msg-content.folded {
+      display: none;
+    }
+
+    .msg-info .msg-header {
+      color: #0366d6;
+    }
+
+    .msg-warn .msg-header {
+      color: #f2994a;
+    }
+
+    .msg-error .msg-header {
+      color: #d73a49;
+    }
+
+    .group {
+      background: #fff;
+      border: 1px solid #e1e4e8;
+      margin: 15px 0;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .group-header {
+      cursor: pointer;
+      background: #f8f9fa;
+      padding: 12px 15px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e1e4e8;
+    }
+
+    .group-header:hover {
+      background: #f1f3f5;
+    }
+
+    .group-header.folded {
+      border-bottom: none;
+    }
+
+    .group-content {
+      padding: 15px;
+    }
+
+    .group-content.folded {
+      display: none;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    th,
+    td {
+      border: 1px solid #e1e4e8;
+      padding: 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8f9fa;
+      color: #586069;
+      font-size: 0.9em;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    tr:nth-child(even) {
+      background-color: #fafbfc;
+    }
+
+    tr:hover {
+      background-color: #f6f8fa;
+    }
+
+    .product-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .product-item {
+      padding: 6px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.85em;
+    }
+
+    .product-item:last-child {
+      border-bottom: none;
+    }
+
+    .segments {
+      color: #0366d6;
+      font-weight: 600;
+      display: block;
+      margin-top: 4px;
+    }
+
+    .transits {
+      color: #d73a49;
+      font-style: italic;
+      font-size: 0.8em;
+      display: block;
+    }
+
+    .arrow::after {
+      content: ' ▼';
+      font-size: 0.8em;
+      color: #6a737d;
+    }
+
+    .folded .arrow::after {
+      content: ' ▶';
+    }
+
+    .error-box {
+      color: #d73a49;
+      padding: 20px;
+      background: #ffeef0;
+      border: 1px solid #f97583;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+
 <body>
-  <textarea id='jsontxt' style='width:100%; height:100%;'></textarea>
+  <div id="controls">
+    <textarea id='jsontxt' placeholder="Paste JSON here..."></textarea>
+  </div>
+  <div id="messages-root"></div>
+  <div id="gui-root"></div>
+  <script type="module" src="./index.js"></script>
 </body>
-<script src='./index.js'></script>
 
 </html>
