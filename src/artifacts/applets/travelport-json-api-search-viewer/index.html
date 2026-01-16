@@ -12,17 +12,23 @@
       color: #333;
     }
 
-    #controls {
-      margin-bottom: 10px;
+    h1 {
+      margin-bottom: 20px;
     }
 
-    #jsontxt {
-      width: 100%;
-      height: 100px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-      font-family: monospace;
+    #controls {
+      margin-bottom: 20px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e1e4e8;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    #controls label {
+      font-weight: bold;
     }
 
     #gui-root {
@@ -32,7 +38,7 @@
     /* Messages UI */
     #messages-root {
       margin: 10px 0;
-      max-height: 300px;
+      max-height: 200px;
       overflow-y: auto;
       border: 1px solid #e1e4e8;
       border-radius: 6px;
@@ -81,6 +87,19 @@
       color: #d73a49;
     }
 
+    /* JSON Tree container */
+    #jsontree-outer {
+      margin-bottom: 20px;
+    }
+
+    #jsontree-root {
+      min-height: 50px;
+      background: #fff;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 10px;
+    }
+
     .group {
       background: #fff;
       border: 1px solid #e1e4e8;
@@ -93,7 +112,7 @@
     .group-header {
       cursor: pointer;
       background: #f8f9fa;
-      padding: 12px 15px;
+      padding: 10px 15px;
       font-weight: bold;
       display: flex;
       justify-content: space-between;
@@ -110,7 +129,7 @@
     }
 
     .group-content {
-      padding: 15px;
+      padding: 1px;
     }
 
     .group-content.folded {
@@ -126,7 +145,7 @@
     th,
     td {
       border: 1px solid #e1e4e8;
-      padding: 12px;
+      padding: 10px;
       text-align: left;
       vertical-align: top;
     }
@@ -134,7 +153,7 @@
     th {
       background: #f8f9fa;
       color: #586069;
-      font-size: 0.9em;
+      font-size: 0.85em;
       text-transform: uppercase;
       letter-spacing: 0.05em;
     }
@@ -147,6 +166,25 @@
       background-color: #f6f8fa;
     }
 
+    .price-highlight {
+      color: #28a745;
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+
+    .cc-code {
+      font-family: monospace;
+      color: #6a737d;
+      font-size: 0.85em;
+    }
+
+    .combo-count {
+      color: #6f42c1;
+      font-size: 1.2em;
+      margin-left: 8px;
+      font-weight: normal;
+    }
+
     .product-list {
       list-style: none;
       padding: 0;
@@ -154,7 +192,7 @@
     }
 
     .product-item {
-      padding: 6px 0;
+      padding: 4px 0;
       border-bottom: 1px solid #eee;
       font-size: 0.85em;
     }
@@ -163,11 +201,16 @@
       border-bottom: none;
     }
 
-    .segments {
+    .route-info {
       color: #0366d6;
       font-weight: 600;
+    }
+
+    .segments {
+      color: #666;
       display: block;
-      margin-top: 4px;
+      margin-top: 2px;
+      font-size: 0.8em;
     }
 
     .transits {
@@ -175,6 +218,17 @@
       font-style: italic;
       font-size: 0.8em;
       display: block;
+    }
+
+    .brand-tag {
+      background: #e1ecf4;
+      color: #39739d;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.75em;
+      display: inline-block;
+      margin-top: 4px;
+      border: 1px solid #addaf4;
     }
 
     .arrow::after {
@@ -198,11 +252,17 @@
 </head>
 
 <body>
+  <h1>Travelport JSON API Search Viewer</h1>
   <div id="controls">
-    <textarea id='jsontxt' placeholder="Paste JSON here..."></textarea>
+    <label for="json-file">Load JSON Response:</label>
+    <input type="file" id="json-file" accept=".json">
   </div>
+
+  <div id="jsontree-outer"></div>
+
   <div id="messages-root"></div>
   <div id="gui-root"></div>
+
   <script type="module" src="./index.js"></script>
 </body>
 
