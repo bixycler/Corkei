@@ -1,6 +1,4 @@
 
-import 'jjsontree.js';
-import 'jjsontree.js/dist/jsontree.js.css';
 
 // Messages buffering system
 const messages = [];
@@ -92,8 +90,6 @@ function ellipsizeCC(cc) {
 
 async function main() {
   const fileInput = document.getElementById('json-file');
-  const jsontreeOuter = document.getElementById('jsontree-outer');
-
   // Load default test.json if available
   try {
     const response = await fetch('test.json');
@@ -102,7 +98,7 @@ async function main() {
       render(data);
     }
   } catch (e) {
-    console.debug("Optional test.json not found, waiting for user input.");
+    console.debug("Optional test.json not found or failed to load:", e);
   }
 
   fileInput.addEventListener('change', (e) => {
@@ -129,9 +125,7 @@ async function main() {
 
 function render(TravelportResponse) {
   const guiRoot = document.getElementById('gui-root');
-  const jsontreeOuter = document.getElementById('jsontree-outer');
   guiRoot.innerHTML = '';
-  jsontreeOuter.innerHTML = '';
 
   if (!TravelportResponse?.CatalogProductOfferingsResponse?.CatalogProductOfferings?.CatalogProductOffering) {
     uiConsole.error('Invalid Travelport JSON structure.');
@@ -139,17 +133,9 @@ function render(TravelportResponse) {
     return;
   }
 
-  // Render JSON Tree in a foldable group
-  const treeContent = createFoldableGroup('Response JSON Tree View', jsontreeOuter, true);
-  if (window.$jsontree) {
-    // Deep copy to prevent circular reference errors in the tree view
-    const cleanData = JSON.parse(JSON.stringify(TravelportResponse));
-    window.$jsontree.render(treeContent, { data: cleanData });
-  } else {
-    treeContent.textContent = "JsonTree library not loaded.";
-  }
-
   // Global variables for console debug 
+  window.TravelportResponse = TravelportResponse;
+
   // Travelport JSON tree: offer > option > product
   window.TravelportOffers = TravelportResponse.CatalogProductOfferingsResponse.CatalogProductOfferings.CatalogProductOffering;
 
