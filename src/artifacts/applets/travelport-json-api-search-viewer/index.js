@@ -264,10 +264,9 @@ function render(TravelportResponse) {
 
   // Postprocessing 1: link priceCombos with combos and calculate combo counts
   for (let combo of Object.values(window.TravelportCombos)) {
-    // comboCount = product of products per leg
+    // comboCount = product of product counts per leg
     combo.comboCount = combo.legs.reduce((acc, leg) => acc * (leg ? leg.length : 0), 1);
   }
-
   for (let priceCombo of Object.values(window.TravelportPriceCombos)) {
     for (let cc of priceCombo.CombinabilityCode) {
       let combo = window.TravelportCombos[cc];
@@ -289,6 +288,7 @@ function render(TravelportResponse) {
       if (!optionGroup) continue;
       for (let priceCombo of optionGroup) {
         priceCombo.offerCombo = offerCombo;
+        priceCombo.legs = [];
         for (let combo of priceCombo.combos) {
           for (let legi in combo.legs) {
             let leg = combo.legs[legi];
@@ -309,6 +309,14 @@ function render(TravelportResponse) {
                 if (!offerCombo.legs[legi].includes(legOffer)) offerCombo.legs[legi].push(legOffer);
               } else if (offerCombo.legs[legi] !== legOffer) {
                 offerCombo.legs[legi] = [offerCombo.legs[legi], legOffer];
+              }
+
+              // Also track per-priceCombo legs
+              if (!(legi in priceCombo.legs)) priceCombo.legs[legi] = legOffer;
+              else if (Array.isArray(priceCombo.legs[legi])) {
+                if (!priceCombo.legs[legi].includes(legOffer)) priceCombo.legs[legi].push(legOffer);
+              } else if (priceCombo.legs[legi] !== legOffer) {
+                priceCombo.legs[legi] = [priceCombo.legs[legi], legOffer];
               }
             }
           }
@@ -378,7 +386,7 @@ function render(TravelportResponse) {
         const maxLegs = offerCombo.legs.length;
         for (let i = 0; i < maxLegs; i++) {
           const th = document.createElement('th');
-          th.innerHTML = `Leg ${i + 1}<br><small>${getLegHeader(offerCombo.legs[i])}</small>`;
+          th.innerHTML = `Leg ${i + 1}<br><small>${getLegHeader(priceCombo.legs[i])}</small>`;
           headerRow.appendChild(th);
         }
         thead.appendChild(headerRow);
