@@ -366,7 +366,7 @@ function render(TravelportResponse) {
 
       optionGroup.forEach(priceCombo => {
         // Price combo = table (Price Combo Group - Default Folded)
-        const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combos</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
+        const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combo(s)</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
         const pccContent = createFoldableGroup(pccTitle, targetContent, true);
 
         const table = document.createElement('table');
