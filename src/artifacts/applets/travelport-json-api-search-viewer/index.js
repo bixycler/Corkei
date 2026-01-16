@@ -34,6 +34,11 @@ const uiConsole = {
   error: (...args) => log('error', ...args)
 };
 
+function updateFileStatus(name) {
+  const el = document.getElementById('file-status');
+  if (el) el.textContent = name ? `Current File: ${name}` : '';
+}
+
 function updateMessagesUI() {
   const root = document.getElementById('messages-root');
   if (!root) return;
@@ -47,6 +52,8 @@ function updateMessagesUI() {
 
   root.style.display = 'block';
   root.innerHTML = '';
+
+  const mainGroup = createFoldableGroup('System Messages', root, true);
 
   filtered.forEach((msg, idx) => {
     const group = document.createElement('div');
@@ -73,11 +80,11 @@ function updateMessagesUI() {
 
     group.appendChild(header);
     group.appendChild(content);
-    root.appendChild(group);
+    mainGroup.appendChild(group);
   });
 }
 
-function formatPrice(val) {
+function formatNumber(val) {
   return new Intl.NumberFormat().format(val);
 }
 
@@ -95,10 +102,13 @@ async function main() {
     const response = await fetch('test.json');
     if (response.ok) {
       const data = await response.json();
+      updateFileStatus('test.json');
       render(data);
+    } else {
+      console.debug(`Optional test.json not found (Status: ${response.status})`);
     }
   } catch (e) {
-    console.debug("Optional test.json not found or failed to load:", e);
+    console.debug("Optional test.json loading failed:", e);
   }
 
   fileInput.addEventListener('change', (e) => {
@@ -110,6 +120,7 @@ async function main() {
     reader.onload = (event) => {
       try {
         messages.length = 0; // Clear messages on new file
+        updateFileStatus(file.name);
         const result = event.target?.result;
         if (typeof result === 'string') {
           const data = JSON.parse(result);
@@ -309,7 +320,7 @@ function render(TravelportResponse) {
   const getLegHeader = (offerOrOffers) => {
     const offers = Array.isArray(offerOrOffers) ? offerOrOffers : [offerOrOffers];
     return offers.map(offer => {
-      let desc = `<b>${offer.Departure} → ${offer.Arrival}</b>`;
+      let desc = `<b>${offer.id}: ${offer.Departure} → ${offer.Arrival}</b>`;
       const options = Array.isArray(offer.ProductBrandOptions) ? offer.ProductBrandOptions : Object.values(offer.ProductBrandOptions);
       const firstOpt = options[0];
       if (firstOpt) {
@@ -331,26 +342,37 @@ function render(TravelportResponse) {
 
   // UI Rendering
   window.TravelportOfferCombos.forEach((offerCombo, idx) => {
+    // Collect all leg offer IDs for the header
+    const offerIds = [];
+    offerCombo.legs.forEach(leg => {
+      const offers = Array.isArray(leg) ? leg : [leg];
+      offers.forEach(o => {
+        if (!offerIds.includes(o.id)) offerIds.push(o.id);
+      });
+    });
+
     // Offer combo = outmost group
-    const offerContent = createFoldableGroup(`Offer Combo #${idx + 1} (${offerCombo.id})`, guiRoot, false);
+    const isGds = offerCombo.ContentSource === 'GDS';
+    const offerContent = createFoldableGroup(`Offer Combo #${idx + 1} (${offerCombo.id}) [Leg IDs: ${offerIds.join(', ')}]`, guiRoot, false, isGds, 'group-offer');
 
     offerCombo.options.forEach((optionGroup, optIdx) => {
       if (!optionGroup) return;
       // Option = group
       let targetContent = offerContent;
       if (offerCombo.ContentSource !== 'GDS') {
-        targetContent = createFoldableGroup(`Option #${optIdx + 1}`, offerContent, false); // Default Open
+        const isNdc = offerCombo.ContentSource === 'NDC';
+        targetContent = createFoldableGroup(`Option #${optIdx + 1}`, offerContent, false, isNdc); // Default Open, NDC locked
       }
 
       optionGroup.forEach(priceCombo => {
         // Price combo = table (Price Combo Group - Default Folded)
-        const pccTitle = `<span class="price-highlight">${formatPrice(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${priceCombo.totalComboCount} combos</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
+        const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combos</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
         const pccContent = createFoldableGroup(pccTitle, targetContent, true);
 
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
-        headerRow.innerHTML = '<th>Combo CC <small>(Count)</small></th>';
+        headerRow.innerHTML = '<th>Combo CC<br><small>(Count)</small></th>';
 
         // Leg = column
         const maxLegs = offerCombo.legs.length;
@@ -366,7 +388,7 @@ function render(TravelportResponse) {
         priceCombo.combos.forEach(combo => {
           // Combo = row
           const row = document.createElement('tr');
-          row.innerHTML = `<td><span class="cc-code" title="${combo.cc}">${combo.cc}</span><br><div style="margin-top: 5px;"></div><span class="combo-count">(${combo.comboCount})</span></td>`;
+          row.innerHTML = `<td><span class="cc-code" title="${combo.cc}">${combo.cc}</span><br><div style="margin-top: 5px;"></div><span class="combo-count">(${formatNumber(combo.comboCount)})</span></td>`;
 
           for (let i = 0; i < maxLegs; i++) {
             const td = document.createElement('td');
@@ -396,25 +418,30 @@ function render(TravelportResponse) {
   });
 }
 
-function createFoldableGroup(title, parent, foldedByDefault = true) {
+function createFoldableGroup(title, parent, foldedByDefault = true, locked = false, extraClass = '') {
   const group = document.createElement('div');
-  group.className = 'group';
+  group.className = 'group' + (extraClass ? ' ' + extraClass : '');
 
   const header = document.createElement('div');
   header.className = 'group-header';
-  header.innerHTML = `<span>${title}</span><span class="arrow"></span>`;
+  header.innerHTML = `<span>${title}</span>`;
+
+  if (!locked) {
+    header.innerHTML += '<span class="arrow"></span>';
+    header.onclick = (e) => {
+      content.classList.toggle('folded');
+      header.classList.toggle('folded');
+    };
+  } else {
+    header.style.cursor = 'default';
+  }
 
   const content = document.createElement('div');
   content.className = 'group-content';
-  if (foldedByDefault) {
+  if (foldedByDefault && !locked) {
     content.classList.add('folded');
     header.classList.add('folded');
   }
-
-  header.onclick = (e) => {
-    content.classList.toggle('folded');
-    header.classList.toggle('folded');
-  };
 
   group.appendChild(header);
   group.appendChild(content);
@@ -422,4 +449,6 @@ function createFoldableGroup(title, parent, foldedByDefault = true) {
   return content;
 }
 
-main();
+main().catch(err => {
+  console.error("Top-level error in main():", err);
+});
