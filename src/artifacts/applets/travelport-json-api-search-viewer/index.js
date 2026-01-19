@@ -55,13 +55,13 @@ function updateMessagesUI() {
 
   const mainGroup = createFoldableGroup('System Messages', root, true);
 
-  filtered.forEach((msg, idx) => {
+  for (const [idx, msg] of filtered.entries()) {
     const group = document.createElement('div');
     group.className = `msg-group msg-${msg.level}`;
 
     const header = document.createElement('div');
     header.className = 'msg-header';
-    header.innerHTML = `<span>[${msg.level.toUpperCase()}] Message #${idx + 1}</span><span class="arrow"></span>`;
+    header.innerHTML = `<span>[${msg.level.toUpperCase()}] Message #${Number(idx) + 1}</span><span class="arrow"></span>`;
 
     const content = document.createElement('div');
     content.className = 'msg-content';
@@ -81,7 +81,7 @@ function updateMessagesUI() {
     group.appendChild(header);
     group.appendChild(content);
     mainGroup.appendChild(group);
-  });
+  }
 }
 
 function formatNumber(val) {
@@ -134,21 +134,21 @@ async function main() {
   });
 }
 
-function render(TravelportResponse) {
+function render(response) {
   const guiRoot = document.getElementById('gui-root');
   guiRoot.innerHTML = '';
 
-  if (!TravelportResponse?.CatalogProductOfferingsResponse?.CatalogProductOfferings?.CatalogProductOffering) {
+  if (!response?.CatalogProductOfferingsResponse?.CatalogProductOfferings?.CatalogProductOffering) {
     uiConsole.error('Invalid Travelport JSON structure.');
     guiRoot.innerHTML = '<div class="error-box">Invalid Travelport JSON structure.</div>';
     return;
   }
 
   // Global variables for console debug 
-  window.TravelportResponse = TravelportResponse;
+  window.TravelportResponse = JSON.parse(JSON.stringify(response)); // Clone the original response
 
   // Travelport JSON tree: offer > option > product
-  window.TravelportOffers = TravelportResponse.CatalogProductOfferingsResponse.CatalogProductOfferings.CatalogProductOffering;
+  window.TravelportOffers = response.CatalogProductOfferingsResponse.CatalogProductOfferings.CatalogProductOffering;
 
   // Combo index tree: offer-combo > option > price-combo > combo / leg (segment) / product
   window.TravelportOfferCombos = []; // Combo collection: root nodes are offer combos, limited by offersPerPage
@@ -156,37 +156,37 @@ function render(TravelportResponse) {
   window.TravelportCombos = {}; // Combos (lines of products through all legs), indexed by individual CombinabilityCode
   window.TravelportProducts = {}; // The smallest unit, leaf nodes in combo index tree
 
-  // Reference Maps for quick lookup
-  const ReferenceList = TravelportResponse.CatalogProductOfferingsResponse.ReferenceList || [];
-  const FlightMap = {};
-  ReferenceList.forEach(list => {
-    if (list['@type'] === 'ReferenceListFlight') {
-      list.Flight.forEach(f => FlightMap[f.id] = f);
-    }
-  });
+  // Preprocessing: Add `position` and prepend it to `id` for offers
+  for (let [oi, offer] of window.TravelportOffers.entries()) {
+    offer.position = oi + 1;
+    offer.id = `${offer.position}:${offer.id}`;
+  }
 
   // Build Combo index tree from Travelport JSON tree (TravelportOffers)
   // Combo index tree: offer-combo > option > price-combo > combo / leg (segment) / product
   for (let offer of window.TravelportOffers) {
     let legSequence = offer.sequence;
     if (legSequence === 1) {
-      let offerCombo = { id: 'opl:' + offer.id, legs: [], options: [], ContentSource: null };
+      let oci = window.TravelportOfferCombos.length + 1;
+      let offerCombo = { position: oci, id: `oc${oci}:${offer.id}`, legs: [], options: [], ContentSource: null };
       window.TravelportOfferCombos.push(offerCombo);
     }
 
-    for (let optid in offer.ProductBrandOptions) {
-      let opt = offer.ProductBrandOptions[optid];
+    for (let [optid, opt] of offer.ProductBrandOptions.entries()) {
       opt.offer = offer; // uplink
 
       const offerings = Array.isArray(opt.ProductBrandOffering) ? opt.ProductBrandOffering : Object.values(opt.ProductBrandOffering);
 
-      for (let product of offerings) {
+      for (let [pi, product] of offerings.entries()) {
         product.option = opt; // uplink
+
         let pid = product.Product[0].productRef;
         if (product.Product.length > 1) {
           uiConsole.info('Product has more than 1 ID:', product.Product);
         }
-        window.TravelportProducts[pid] = product;
+        product.position = `${offer.position}:${optid + 1}:${pi + 1}`;
+        product.id = `${product.position}:${pid}`;
+        window.TravelportProducts[product.id] = product;
 
         // Clean up irrelavent fields for clarity in console debug
         delete offer['@type'];
@@ -290,8 +290,7 @@ function render(TravelportResponse) {
         priceCombo.offerCombo = offerCombo;
         priceCombo.legs = [];
         for (let combo of priceCombo.combos) {
-          for (let legi in combo.legs) {
-            let leg = combo.legs[legi];
+          for (let [legi, leg] of combo.legs.entries()) {
             if (leg.length < 1) {
               uiConsole.warn(`Empty leg #${parseInt(legi) + 1} in combo ${combo.cc}`, combo);
               continue;
@@ -325,54 +324,45 @@ function render(TravelportResponse) {
     }
   }
 
+  // Postprocessing 3: sort PriceCombos by price => PriceCombo.priceCC = priceOrder:PCC
+  window.TravelportPrices = Object.entries(window.TravelportPriceCombos).map(([pcc, priceCombo]) => priceCombo);
+  window.TravelportPrices.sort((a, b) => a.price - b.price);
+  window.TravelportPrices.map((priceCombo, index) => priceCombo.priceCC = `${index + 1}:${priceCombo.priceCC}`);
+
+  // Helper to get leg description from offer(s) to display in table header
   const getLegHeader = (offerOrOffers) => {
     const offers = Array.isArray(offerOrOffers) ? offerOrOffers : [offerOrOffers];
     return offers.map(offer => {
       let desc = `<b>${offer.id}: ${offer.Departure} → ${offer.Arrival}</b>`;
-      const options = Array.isArray(offer.ProductBrandOptions) ? offer.ProductBrandOptions : Object.values(offer.ProductBrandOptions);
-      const firstOpt = options[0];
-      if (firstOpt) {
-        // Show Brand in header
-        const brand = firstOpt.ProductBrandOffering?.[0]?.Brand?.BrandRef || 'N/A';
-        desc += `<br><span class="brand-tag">Brand: ${brand}</span>`;
-
-        if (firstOpt.flightRefs) {
-          const flights = firstOpt.flightRefs.map(ref => FlightMap[ref]).filter(f => !!f);
-          if (flights.length > 0) {
-            const segments = flights.map(f => `${f.carrier}${f.number}`).join(' → ');
-            desc += `<br><span class="segments">${segments}</span>`;
-          }
-        }
-      }
       return desc;
     }).join('<hr style="margin: 5px 0; border: none; border-top: 1px dashed #ccc;">');
   };
 
   // UI Rendering
-  window.TravelportOfferCombos.forEach((offerCombo, idx) => {
+  for (const [idx, offerCombo] of window.TravelportOfferCombos.entries()) {
     // Collect all leg offer IDs for the header
     const offerIds = [];
-    offerCombo.legs.forEach(leg => {
+    for (const leg of offerCombo.legs) {
       const offers = Array.isArray(leg) ? leg : [leg];
-      offers.forEach(o => {
+      for (const o of offers) {
         if (!offerIds.includes(o.id)) offerIds.push(o.id);
-      });
-    });
+      }
+    }
 
     // Offer combo = outmost group
     const isGds = offerCombo.ContentSource === 'GDS';
-    const offerContent = createFoldableGroup(`Offer Combo #${idx + 1} (${offerCombo.id}) [Leg IDs: ${offerIds.join(', ')}]`, guiRoot, false, isGds, 'group-offer');
+    const offerContent = createFoldableGroup(`Offer Combo #${Number(idx) + 1} (${offerCombo.id}) [Leg IDs: ${offerIds.join(', ')}]`, guiRoot, false, isGds, 'group-offer');
 
-    offerCombo.options.forEach((optionGroup, optIdx) => {
-      if (!optionGroup) return;
+    for (const [optIdx, optionGroup] of offerCombo.options.entries()) {
+      if (!optionGroup) continue;
       // Option = group
       let targetContent = offerContent;
       if (offerCombo.ContentSource !== 'GDS') {
         const isNdc = offerCombo.ContentSource === 'NDC';
-        targetContent = createFoldableGroup(`Option #${optIdx + 1}`, offerContent, false, isNdc); // Default Open, NDC locked
+        targetContent = createFoldableGroup(`Option #${Number(optIdx) + 1}`, offerContent, false, isNdc); // Default Open, NDC locked
       }
 
-      optionGroup.forEach(priceCombo => {
+      for (const priceCombo of optionGroup) {
         // Price combo = table (Price Combo Group - Default Folded)
         const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combo(s)</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
         const pccContent = createFoldableGroup(pccTitle, targetContent, true);
@@ -393,7 +383,7 @@ function render(TravelportResponse) {
         table.appendChild(thead);
 
         const tbody = document.createElement('tbody');
-        priceCombo.combos.forEach(combo => {
+        for (const combo of priceCombo.combos) {
           // Combo = row
           const row = document.createElement('tr');
           row.innerHTML = `<td><span class="cc-code" title="${combo.cc}">${combo.cc}</span><br><div style="margin-top: 5px;"></div><span class="combo-count">(${formatNumber(combo.comboCount)})</span></td>`;
@@ -405,25 +395,25 @@ function render(TravelportResponse) {
               // Products = entries in cell
               const ul = document.createElement('ul');
               ul.className = 'product-list';
-              products.forEach(p => {
+              for (const p of products) {
                 const li = document.createElement('li');
                 li.className = 'product-item';
                 // Replace brand with dep -> arv
                 const off = p.option.offer;
                 li.innerHTML = `<span class="route-info">${off.Departure} → ${off.Arrival}</span><br><small>${p.Product[0].productRef}</small>`;
                 ul.appendChild(li);
-              });
+              }
               td.appendChild(ul);
             }
             row.appendChild(td);
           }
           tbody.appendChild(row);
-        });
+        }
         table.appendChild(tbody);
         pccContent.appendChild(table);
-      });
-    });
-  });
+      }
+    }
+  }
 }
 
 function createFoldableGroup(title, parent, foldedByDefault = true, locked = false, extraClass = '') {
