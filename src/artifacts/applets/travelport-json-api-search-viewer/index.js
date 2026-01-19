@@ -165,6 +165,11 @@ function render(response) {
   // Build Combo index tree from Travelport JSON tree (TravelportOffers)
   // Combo index tree: offer-combo > option > price-combo > combo / leg (segment) / product
   for (let offer of window.TravelportOffers) {
+    if (!offer.ProductBrandOptions) {
+      uiConsole.warn('Skipping offer without ProductBrandOptions:', offer);
+      offer.skip = true;
+      continue;
+    }
     let legSequence = offer.sequence;
     if (legSequence === 1) {
       let oci = window.TravelportOfferCombos.length + 1;
@@ -211,16 +216,7 @@ function render(response) {
             totalComboCount: 0
           };
           window.TravelportPriceCombos[pcc] = priceCombo;
-          // Add this new priceCombo to TravelportOfferCombos
-          if (legSequence === 1) {
-            // Combo collection: offer-combo > option > price-combo > combo
-            let offerCombo = window.TravelportOfferCombos.at(-1);
-            if (!offerCombo.ContentSource) offerCombo.ContentSource = product.ContentSource;
-            let oid = product.ContentSource === 'NDC' ? optid : 0;
-            let optionGroup = offerCombo.options[oid] ?? (offerCombo.options[oid] = []);
-            optionGroup.push(priceCombo);
-            uiConsole.debug('New offerCombo:', offerCombo, `at opt[${oid}]/product[${pid}]`, product);
-          }
+          uiConsole.debug('New priceCombo:', priceCombo, `at product[${pid}]`, product);
         } else { // Check this price against existing priceCombo
           priceCombo = window.TravelportPriceCombos[pcc];
           if (price !== priceCombo.price) {
@@ -229,6 +225,16 @@ function render(response) {
           if (JSON.stringify(product.BestCombinablePrice) !== JSON.stringify(priceCombo.BestCombinablePrice)) {
             uiConsole.info(`Different BestCombinablePrice for pcc = ${pcc}: `, 'product = ', product.BestCombinablePrice, ' <> combo =', priceCombo.BestCombinablePrice);
           }
+        }
+        // Add this priceCombo to TravelportOfferCombos
+        // Note: This might not be a new priceCombo, because 1st leg might come after other legs
+        if (legSequence === 1) {
+          // Combo collection: offer-combo > option > price-combo > combo
+          let offerCombo = window.TravelportOfferCombos.at(-1);
+          if (!offerCombo.ContentSource) offerCombo.ContentSource = product.ContentSource;
+          let oid = product.ContentSource === 'NDC' ? optid : 0;
+          let optionGroup = offerCombo.options[oid] ?? (offerCombo.options[oid] = []);
+          if (!optionGroup.includes(priceCombo)) optionGroup.push(priceCombo);
         }
 
         // Process combos by CombinabilityCode (cc)
@@ -333,6 +339,7 @@ function render(response) {
   const getLegHeader = (offerOrOffers) => {
     const offers = Array.isArray(offerOrOffers) ? offerOrOffers : [offerOrOffers];
     return offers.map(offer => {
+      if (!offer) { return '(N/A)' }
       let desc = `<b>${offer.id}: ${offer.Departure} → ${offer.Arrival}</b>`;
       return desc;
     }).join('<hr style="margin: 5px 0; border: none; border-top: 1px dashed #ccc;">');
@@ -363,10 +370,6 @@ function render(response) {
       }
 
       for (const priceCombo of optionGroup) {
-        // Price combo = table (Price Combo Group - Default Folded)
-        const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combo(s)</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
-        const pccContent = createFoldableGroup(pccTitle, targetContent, true);
-
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const headerRow = document.createElement('tr');
@@ -383,6 +386,12 @@ function render(response) {
         table.appendChild(thead);
 
         const tbody = document.createElement('tbody');
+        const drawLines = renderPriceComboOverview(priceCombo, offerCombo.ContentSource === 'NDC', tbody);
+
+        // Price combo = table (Price Combo Group - Default Folded)
+        const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combo(s)</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
+        const pccContent = createFoldableGroup(pccTitle, targetContent, true, false, '', drawLines);
+
         for (const combo of priceCombo.combos) {
           // Combo = row
           const row = document.createElement('tr');
@@ -416,7 +425,151 @@ function render(response) {
   }
 }
 
-function createFoldableGroup(title, parent, foldedByDefault = true, locked = false, extraClass = '') {
+function renderPriceComboOverview(priceCombo, isNdc, tbody) {
+  const maxLegs = priceCombo.legs.length;
+  const overviewRow = document.createElement('tr');
+  overviewRow.className = 'overview-row';
+
+  // First cell for labels (empty or reserved)
+  const firstCell = document.createElement('td');
+  firstCell.style.border = 'none';
+  overviewRow.appendChild(firstCell);
+
+  const dotMaps = []; // Array of maps: legIndex -> { 'position:cc' -> dotElement }
+
+  for (let i = 0; i < maxLegs; i++) {
+    const td = document.createElement('td');
+    td.className = 'overview-cell';
+    overviewRow.appendChild(td);
+
+    const legStack = document.createElement('div');
+    legStack.className = 'leg-stack';
+    td.appendChild(legStack);
+
+    const dotMap = {};
+    dotMaps.push(dotMap);
+
+    // Get the offer(s) for this leg
+    const legOffers = Array.isArray(priceCombo.legs[i]) ? priceCombo.legs[i] : [priceCombo.legs[i]];
+
+    // Build complete structure for all offers
+    for (const offer of legOffers) {
+      const offerBox = document.createElement('div');
+      offerBox.className = 'offer-box';
+      offerBox.title = `Offer ${offer.id}`;
+      legStack.appendChild(offerBox);
+
+      // Create slots for all options
+      for (const opt of offer.ProductBrandOptions) {
+        const optionBox = document.createElement('div');
+        optionBox.className = 'option-box';
+        offerBox.appendChild(optionBox);
+
+        // Get products
+        const products = Array.isArray(opt.ProductBrandOffering) ? opt.ProductBrandOffering : Object.values(opt.ProductBrandOffering);
+
+        // Create slots for all products
+        for (const product of products) {
+          const productBox = document.createElement('div');
+          productBox.className = 'product-box';
+          productBox.title = `Product ${product.id}`;
+          optionBox.appendChild(productBox);
+
+          // Add CC dots only if this product is in the current priceCombo
+          for (const cc of product.CombinabilityCode) {
+            if (priceCombo.CombinabilityCode.includes(cc)) {
+              const dot = document.createElement('div');
+              dot.className = 'cc-dot';
+              dot.title = `CC: ${cc}`;
+              productBox.appendChild(dot);
+
+              // Store dot with address: position:cc
+              const address = `${product.position}:${cc}`;
+              dotMap[address] = dot;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  tbody.appendChild(overviewRow);
+
+  // Return the drawing logic as a callback
+  return () => {
+    // Check if already drawn
+    if (overviewRow.querySelector('svg')) return;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'overview-lines-svg');
+    overviewRow.appendChild(svg);
+
+    const rowRect = overviewRow.getBoundingClientRect();
+    if (rowRect.width === 0 || rowRect.height === 0) {
+      uiConsole.warn('Cannot draw lines: overviewRow has no size. Is it visible?');
+      return;
+    }
+
+    for (const combo of priceCombo.combos) {
+      const cc = combo.cc;
+
+      for (let i = 0; i < maxLegs - 1; i++) {
+        const products1 = combo.legs[i] || [];
+        const products2 = combo.legs[i + 1] || [];
+
+        if (isNdc) {
+          // NDC: one product per leg, draw single line
+          if (products1.length > 0 && products2.length > 0) {
+            const p1 = products1[0];
+            const p2 = products2[0];
+            const addr1 = `${p1.position}:${cc}`;
+            const addr2 = `${p2.position}:${cc}`;
+            const d1 = dotMaps[i][addr1];
+            const d2 = dotMaps[i + 1][addr2];
+            if (d1 && d2) {
+              drawLine(svg, d1, d2, rowRect);
+            }
+          }
+        } else {
+          // GDS: m x n segments
+          for (const p1 of products1) {
+            for (const p2 of products2) {
+              const addr1 = `${p1.position}:${cc}`;
+              const addr2 = `${p2.position}:${cc}`;
+              const d1 = dotMaps[i][addr1];
+              const d2 = dotMaps[i + 1][addr2];
+              if (d1 && d2) {
+                drawLine(svg, d1, d2, rowRect);
+              }
+            }
+          }
+        }
+      }
+    }
+  };
+}
+
+function drawLine(svg, el1, el2, rowRect) {
+  const r1 = el1.getBoundingClientRect();
+  const r2 = el2.getBoundingClientRect();
+
+  const x1 = r1.left + r1.width / 2 - rowRect.left;
+  const y1 = r1.top + r1.height / 2 - rowRect.top;
+  const x2 = r2.left + r2.width / 2 - rowRect.left;
+  const y2 = r2.top + r2.height / 2 - rowRect.top;
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', String(x1));
+  line.setAttribute('y1', String(y1));
+  line.setAttribute('x2', String(x2));
+  line.setAttribute('y2', String(y2));
+  line.setAttribute('stroke', '#6f42c1');
+  line.setAttribute('stroke-width', '1');
+  line.setAttribute('opacity', '0.4');
+  svg.appendChild(line);
+}
+
+function createFoldableGroup(title, parent, foldedByDefault = true, locked = false, extraClass = '', onUnfold = null) {
   const group = document.createElement('div');
   group.className = 'group' + (extraClass ? ' ' + extraClass : '');
 
@@ -429,6 +582,9 @@ function createFoldableGroup(title, parent, foldedByDefault = true, locked = fal
     header.onclick = (e) => {
       content.classList.toggle('folded');
       header.classList.toggle('folded');
+      if (!content.classList.contains('folded') && onUnfold) {
+        onUnfold();
+      }
     };
   } else {
     header.style.cursor = 'default';
@@ -439,6 +595,9 @@ function createFoldableGroup(title, parent, foldedByDefault = true, locked = fal
   if (foldedByDefault && !locked) {
     content.classList.add('folded');
     header.classList.add('folded');
+  } else if (!foldedByDefault && onUnfold) {
+    // If open by default, call onUnfold immediately or after a short delay
+    requestAnimationFrame(() => onUnfold());
   }
 
   group.appendChild(header);
