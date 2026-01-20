@@ -53,7 +53,7 @@ function updateMessagesUI() {
   root.style.display = 'block';
   root.innerHTML = '';
 
-  const mainGroup = createFoldableGroup('System Messages', root, true);
+  const mainGroup = createFoldableGroup('System Messages', root, true, false, '', null, '', false);
 
   for (const [idx, msg] of filtered.entries()) {
     const group = document.createElement('div');
@@ -149,12 +149,38 @@ function render(response) {
 
   // Travelport JSON tree: offer > option > product
   window.TravelportOffers = response.CatalogProductOfferingsResponse.CatalogProductOfferings.CatalogProductOffering;
+  window.TravelportReferenceList = response.CatalogProductOfferingsResponse.ReferenceList;
 
-  // Combo index tree: offer-combo > option > price-combo > combo / leg (segment) / product
+  // Combo index tree: offer-combo > option > price-combo > combo / leg / product
   window.TravelportOfferCombos = []; // Combo collection: root nodes are offer combos, limited by offersPerPage
   window.TravelportPriceCombos = {}; // Price combos indexed by CombinabilityCode set
   window.TravelportCombos = {}; // Combos (lines of products through all legs), indexed by individual CombinabilityCode
   window.TravelportProducts = {}; // The smallest unit, leaf nodes in combo index tree
+
+  // Reference indices
+  window.TravelportRefProducts = {}; // Index `productRef` in TravelportProducts
+  window.TravelportRefFlights = {}; // Index `FlightRef` in TravelportRefProducts(.FlightSegment) and `flightRef` in TravelportProducts(.option)
+
+  // Build reference indices
+  for (let list of window.TravelportReferenceList) {
+    if (list['@type'] === "ReferenceListProduct") {
+      for (let pref of list.Product) {
+        window.TravelportRefProducts[pref.id] = pref;
+      }
+    }
+    if (list['@type'] === "ReferenceListFlight") {
+      for (let fref of list.Flight) {
+        window.TravelportRefFlights[fref.id] = fref;
+      }
+    }
+  }
+  // Link product segments to flights
+  for (let pref of Object.values(window.TravelportRefProducts)) {
+    if (!pref.FlightSegment) continue;
+    for (let seg of pref.FlightSegment) {
+      seg.flight = window.TravelportRefFlights[seg.Flight.FlightRef];
+    }
+  }
 
   // Preprocessing: Add `position` and prepend it to `id` for offers
   for (let [oi, offer] of window.TravelportOffers.entries()) {
@@ -163,7 +189,7 @@ function render(response) {
   }
 
   // Build Combo index tree from Travelport JSON tree (TravelportOffers)
-  // Combo index tree: offer-combo > option > price-combo > combo / leg (segment) / product
+  // Combo index tree: offer-combo > option > price-combo > combo / leg / product
   for (let offer of window.TravelportOffers) {
     if (!offer.ProductBrandOptions) {
       uiConsole.warn('Skipping offer without ProductBrandOptions:', offer);
@@ -180,15 +206,16 @@ function render(response) {
     for (let [optid, opt] of offer.ProductBrandOptions.entries()) {
       opt.offer = offer; // uplink
 
-      const offerings = Array.isArray(opt.ProductBrandOffering) ? opt.ProductBrandOffering : Object.values(opt.ProductBrandOffering);
+      const products = Array.isArray(opt.ProductBrandOffering) ? opt.ProductBrandOffering : Object.values(opt.ProductBrandOffering);
 
-      for (let [pi, product] of offerings.entries()) {
+      for (let [pi, product] of products.entries()) {
         product.option = opt; // uplink
 
         let pid = product.Product[0].productRef;
         if (product.Product.length > 1) {
           uiConsole.info('Product has more than 1 ID:', product.Product);
         }
+        product.product = window.TravelportRefProducts[pid]; // Product details
         product.position = `${offer.position}:${optid + 1}:${pi + 1}`;
         product.id = `${product.position}:${pid}`;
         window.TravelportProducts[product.id] = product;
@@ -290,10 +317,12 @@ function render(response) {
 
   // Postprocessing 2: link offerCombo with priceCombos and offers
   for (let offerCombo of window.TravelportOfferCombos) {
+    offerCombo.comboCount = 0; // Initialize for summary
     for (let optionGroup of offerCombo.options) {
       if (!optionGroup) continue;
       for (let priceCombo of optionGroup) {
         priceCombo.offerCombo = offerCombo;
+        offerCombo.comboCount += priceCombo.totalComboCount; // Add to offerCombo total
         priceCombo.legs = [];
         for (let combo of priceCombo.combos) {
           for (let [legi, leg] of combo.legs.entries()) {
@@ -331,9 +360,15 @@ function render(response) {
   }
 
   // Postprocessing 3: sort PriceCombos by price => PriceCombo.priceCC = priceOrder:PCC
-  window.TravelportPrices = Object.entries(window.TravelportPriceCombos).map(([pcc, priceCombo]) => priceCombo);
+  // Filter only legit price combos that were linked in Postprocessing 2
+  window.TravelportPrices = Object.values(window.TravelportPriceCombos).filter(pc => pc.offerCombo != null);
   window.TravelportPrices.sort((a, b) => a.price - b.price);
-  window.TravelportPrices.map((priceCombo, index) => priceCombo.priceCC = `${index + 1}:${priceCombo.priceCC}`);
+  for (let [index, priceCombo] of window.TravelportPrices.entries()) {
+    priceCombo.priceCC = `${index + 1}:${priceCombo.priceCC}`;
+  }
+
+  // Render Summary after system messages
+  renderSummary(guiRoot);
 
   // Helper to get leg description from offer(s) to display in table header
   const getLegHeader = (offerOrOffers) => {
@@ -390,7 +425,8 @@ function render(response) {
 
         // Price combo = table (Price Combo Group - Default Folded)
         const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combo(s)</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
-        const pccContent = createFoldableGroup(pccTitle, targetContent, true, false, '', drawLines);
+        const groupID = `pc-${priceCombo.priceCC.split(':').join('-')}`;
+        const pccContent = createFoldableGroup(pccTitle, targetContent, true, false, '', drawLines, groupID);
 
         for (const combo of priceCombo.combos) {
           // Combo = row
@@ -407,9 +443,29 @@ function render(response) {
               for (const p of products) {
                 const li = document.createElement('li');
                 li.className = 'product-item';
-                // Replace brand with dep -> arv
-                const off = p.option.offer;
-                li.innerHTML = `<span class="route-info">${off.Departure} → ${off.Arrival}</span><br><small>${p.Product[0].productRef}</small>`;
+
+                // Build full route with transits
+                const flightPath = [];
+                if (p.product?.FlightSegment) {
+                  for (let segIdx = 0; segIdx < p.product.FlightSegment.length; segIdx++) {
+                    const seg = p.product.FlightSegment[segIdx];
+                    const flight = seg.flight;
+                    if (flight) {
+                      if (segIdx === 0) {
+                        flightPath.push(flight.Departure.location);
+                      }
+                      flightPath.push(flight.Arrival.location);
+                    }
+                  }
+                }
+                // deduplicate consecutive identical locations (e.g. SGN-BKK, BKK-NRT => SGN, BKK, NRT)
+                const uniquePath = flightPath.filter((loc, i) => i === 0 || loc !== flightPath[i - 1]);
+                const fullRoute = uniquePath.length > 0 ? uniquePath.join(' → ') : (p.option.offer.Departure + ' → ' + p.option.offer.Arrival);
+
+                li.innerHTML = `
+                  <span class="product-id">${p.Product[0].productRef}</span>
+                  <span class="route-info">${fullRoute}</span>
+                `;
                 ul.appendChild(li);
               }
               td.appendChild(ul);
@@ -569,16 +625,110 @@ function drawLine(svg, el1, el2, rowRect) {
   svg.appendChild(line);
 }
 
-function createFoldableGroup(title, parent, foldedByDefault = true, locked = false, extraClass = '', onUnfold = null) {
+function renderSummary(container) {
+  const summaryRoot = document.createElement('div');
+  summaryRoot.id = 'summary-root';
+
+  const title = document.createElement('span');
+  title.className = 'summary-title';
+  title.innerText = 'Search Results Summary';
+  summaryRoot.appendChild(title);
+
+  // Journey Summary
+  const firstOfferCombo = window.TravelportOfferCombos[0];
+  let journeyStr = 'N/A';
+  if (firstOfferCombo && firstOfferCombo.legs.length > 0) {
+    journeyStr = firstOfferCombo.legs.map(leg => {
+      const off = Array.isArray(leg) ? leg[0] : leg;
+      return `${off.Departure}-${off.Arrival}`;
+    }).join(', ') + ` (${firstOfferCombo.legs.length} legs)`;
+  }
+
+  // Statistics
+  const validOffers = window.TravelportOffers.filter(o => !o.skip);
+  const ndcOffers = validOffers.filter(o => o.ProductBrandOptions?.some(opt => {
+    const products = Array.isArray(opt.ProductBrandOffering) ? opt.ProductBrandOffering : Object.values(opt.ProductBrandOffering);
+    return products.some(p => p.ContentSource === 'NDC');
+  })).length;
+  // Actually ContentSource is at product level. Let's simplify.
+  const nOffers = validOffers.length;
+  const gdsOffers = validOffers.length - ndcOffers;
+
+  let totalOfferCombos = window.TravelportOfferCombos.length;
+  let gdsOfferCombos = window.TravelportOfferCombos.reduce((acc, oc) => oc.ContentSource === 'GDS' ? acc + 1 : acc, 0);
+  let ndcOfferCombos = window.TravelportOfferCombos.reduce((acc, oc) => oc.ContentSource === 'NDC' ? acc + 1 : acc, 0);
+
+  let totalPriceCombos = window.TravelportPrices.length;
+  let gdsPriceCombos = window.TravelportPrices.reduce((acc, pc) => pc.offerCombo.ContentSource === 'GDS' ? acc + 1 : acc, 0);
+  let ndcPriceCombos = window.TravelportPrices.reduce((acc, pc) => pc.offerCombo.ContentSource === 'NDC' ? acc + 1 : acc, 0);
+
+  let totalCombos = 0;
+  let gdsCombos = 0;
+  let ndcCombos = 0;
+  for (const oc of Object.values(window.TravelportOfferCombos)) {
+    totalCombos += oc.comboCount;
+    if (oc.ContentSource === 'NDC') ndcCombos += oc.comboCount;
+    else gdsCombos += oc.comboCount;
+  }
+
+  const info = document.createElement('div');
+  info.className = 'summary-info';
+  info.innerHTML = `
+    <strong>Journey:</strong> ${journeyStr}<br>
+    <strong>Offers:</strong> ${formatNumber(nOffers)} (GDS: ${formatNumber(gdsOffers)}, NDC: ${formatNumber(ndcOffers)}) &emsp;
+    <strong>Offer Combos:</strong> ${formatNumber(totalOfferCombos)} (GDS: ${formatNumber(gdsOfferCombos)}, NDC: ${formatNumber(ndcOfferCombos)}) <br>
+    <strong>Price Combos:</strong> ${formatNumber(totalPriceCombos)} (GDS: ${formatNumber(gdsPriceCombos)}, NDC: ${formatNumber(ndcPriceCombos)}) &emsp;
+    <strong>Total Combos:</strong> ${formatNumber(totalCombos)} (GDS: ${formatNumber(gdsCombos)}, NDC: ${formatNumber(ndcCombos)})
+  `;
+  summaryRoot.appendChild(info);
+
+  // Price Links
+  const priceLinksCont = document.createElement('div');
+  priceLinksCont.className = 'price-links';
+  for (const pc of window.TravelportPrices) {
+    const chip = document.createElement('a');
+    chip.className = 'price-chip';
+    chip.href = `#pc-${pc.priceCC.split(':').join('-')}`;
+    chip.innerText = `${formatNumber(pc.price)} ${pc.currency}`;
+    priceLinksCont.appendChild(chip);
+  }
+  summaryRoot.appendChild(priceLinksCont);
+
+  container.appendChild(summaryRoot);
+}
+
+function createFoldableGroup(title, parent, foldedByDefault = true, locked = false, extraClass = '', onUnfold = null, id = '', showTopLink = true) {
   const group = document.createElement('div');
   group.className = 'group' + (extraClass ? ' ' + extraClass : '');
+  if (id) group.id = id;
 
   const header = document.createElement('div');
   header.className = 'group-header';
   header.innerHTML = `<span>${title}</span>`;
 
+  const actions = document.createElement('div');
+  actions.className = 'group-header-actions';
+
+  // Add Back to Top link
+  if (showTopLink) {
+    const topLink = document.createElement('a');
+    topLink.className = 'back-to-top';
+    topLink.href = '#';
+    topLink.innerHTML = '↑';
+    topLink.title = 'Back to top';
+    topLink.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // Don't toggle the group
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+    actions.appendChild(topLink);
+  }
+
   if (!locked) {
-    header.innerHTML += '<span class="arrow"></span>';
+    const arrow = document.createElement('span');
+    arrow.className = 'arrow';
+    actions.appendChild(arrow);
+
     header.onclick = (e) => {
       content.classList.toggle('folded');
       header.classList.toggle('folded');
@@ -589,9 +739,15 @@ function createFoldableGroup(title, parent, foldedByDefault = true, locked = fal
   } else {
     header.style.cursor = 'default';
   }
+  header.appendChild(actions);
 
   const content = document.createElement('div');
   content.className = 'group-content';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'group-transition-wrapper';
+  content.appendChild(wrapper);
+
   if (foldedByDefault && !locked) {
     content.classList.add('folded');
     header.classList.add('folded');
@@ -603,7 +759,7 @@ function createFoldableGroup(title, parent, foldedByDefault = true, locked = fal
   group.appendChild(header);
   group.appendChild(content);
   parent.appendChild(group);
-  return content;
+  return wrapper; // Return the inner wrapper where elements should be appended
 }
 
 main().catch(err => {

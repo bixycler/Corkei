@@ -8,8 +8,14 @@
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       margin: 20px;
+      /* For scroll to last product: leave a full page space */
+      margin-bottom: 100vh;
       background-color: #f5f7fa;
       color: #333;
+    }
+
+    html {
+      scroll-behavior: smooth;
     }
 
     h1 {
@@ -87,6 +93,54 @@
       color: #d73a49;
     }
 
+    /* Summary Styles */
+    #summary-root {
+      margin: 15px 0;
+      background: #fff;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .summary-info {
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .summary-title {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 8px;
+      display: block;
+      color: #24292e;
+    }
+
+    .price-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .price-chip {
+      background: #e6ffed;
+      border: 1px solid #34d058;
+      color: #22863a;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .price-chip:hover {
+      background: #dcffe4;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transform: translateY(-1px);
+    }
+
 
     .group {
       background: #fff;
@@ -126,11 +180,20 @@
     }
 
     .group-content {
-      padding: 1px;
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.1s ease-out;
+      overflow: hidden;
     }
 
     .group-content.folded {
-      display: none;
+      display: grid;
+      grid-template-rows: 0fr;
+    }
+
+    .group-transition-wrapper {
+      min-height: 0;
+      padding: 1px;
     }
 
     table {
@@ -191,18 +254,27 @@
     }
 
     .product-item {
-      padding: 4px 0;
+      padding: 8px 0;
       border-bottom: 1px solid #eee;
       font-size: 0.85em;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
     }
 
     .product-item:last-child {
       border-bottom: none;
     }
 
+    .product-id {
+      color: #24292e;
+      font-weight: bold;
+      font-size: 1.05em;
+    }
+
     .route-info {
-      color: #0366d6;
-      font-weight: 600;
+      color: #586069;
+      font-weight: normal;
     }
 
     .segments {
@@ -234,10 +306,32 @@
       content: ' ▼';
       font-size: 0.8em;
       color: #6a737d;
+      transition: transform 0.3s;
+      display: inline-block;
     }
 
     .folded .arrow::after {
-      content: ' ▶';
+      transform: rotate(-90deg);
+    }
+
+    .group-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .back-to-top {
+      color: #0366d6;
+      text-decoration: none;
+      font-size: 1.1em;
+      font-weight: normal;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .back-to-top:hover {
+      background: rgba(3, 102, 214, 0.1);
     }
 
     #file-status {
