@@ -228,7 +228,9 @@ const ServiceLogExtension = {
       }
     });
 
-    console.log(`[ServiceLog] Finish parsing. Found ${this._events.length} records.`);
+    // Export to window for console debugging
+    window.ServiceLogEvents = this._events;
+    console.log(`[ServiceLog] Finish parsing. Found ${this._events.length} records.`, window.ServiceLogEvents);
     // Clean up any remaining active calls that didn't have an END
     this._activeCalls.clear();
   },

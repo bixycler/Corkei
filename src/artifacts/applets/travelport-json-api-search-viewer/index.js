@@ -98,22 +98,17 @@ function ellipsizeCC(cc) {
 async function main() {
   const fileInput = document.getElementById('json-file');
   // Load default test.json if available
-  try {
-    const response = await fetch('test.json');
-    if (response.ok) {
-      const data = await response.json();
-      updateFileStatus('test.json');
-      render(data);
-    } else {
-      console.debug(`Optional test.json not found (Status: ${response.status})`);
-    }
-  } catch (e) {
-    console.debug("Optional test.json loading failed:", e);
+  const response = await fetch('test.json');
+  if (response.ok) {
+    const data = await response.json();
+    updateFileStatus('test.json');
+    render(data);
+  } else {
+    console.debug(`Optional test.json not found (Status: ${response.status})`);
   }
 
   fileInput.addEventListener('change', (e) => {
-    const target = e.target;
-    const file = target.files?.[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
