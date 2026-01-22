@@ -49,6 +49,9 @@
       margin-bottom: 2rem;
       width: 100%;
       max-width: 900px;
+      box-sizing: border-box;
+      overflow: hidden;
+      /* Prevent child content from expanding width */
     }
 
     .histogram-title {
@@ -62,10 +65,28 @@
     .bar {
       fill: var(--primary-color);
       transition: fill 0.2s;
+      cursor: pointer;
     }
 
-    .bar:hover {
-      fill: var(--accent-color);
+    .bar.hollow {
+      fill: rgba(74, 144, 226, 0.05);
+      stroke: var(--primary-color);
+      stroke-width: 1;
+    }
+
+    /* High specificity to ensure hover works consistently */
+    .bar:hover,
+    .bar.solid:hover,
+    .bar.hollow:hover {
+      fill: var(--accent-color) !important;
+      stroke: var(--accent-color) !important;
+      opacity: 1 !important;
+    }
+
+    .bar.selected {
+      fill: var(--accent-color) !important;
+      stroke: #fff;
+      stroke-width: 1;
     }
 
     .axis-label {
@@ -132,6 +153,122 @@
       left: 0;
       top: 0;
       opacity: 0;
+      cursor: pointer;
+    }
+
+    /*FIXME: Width expanded when case-item is opened!
+    - When case-item is folded:  details-container = 800, histograms = 864
+    - When case-item is opened: details-container = 836, histograms = 900 (max-width)
+    */
+    .details-container {
+      margin-top: 1.5rem;
+      border-top: 1px solid #eee;
+      padding-top: 1rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .details-container summary {
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      padding: 0.5rem;
+      background: #f9f9f9;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .details-content {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .case-item {
+      margin: 0.5rem 0;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      overflow: hidden;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .case-header {
+      padding: 8px 12px;
+      background: #fff;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      user-select: none;
+      max-width: 100%;
+      box-sizing: border-box;
+      min-width: 0;
+      /* Critical for flex children to respect max-width */
+    }
+
+    .case-header>div {
+      min-width: 0;
+      /* Allow flex children to shrink */
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .case-header:hover {
+      background: #f5faff;
+    }
+
+    .case-content {
+      padding: 12px;
+      background: #fafafa;
+      border-top: 1px solid #eee;
+      font-size: 0.9rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      overflow-wrap: break-word;
+      word-break: break-all;
+    }
+
+    .case-title {
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+
+    .case-meta {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    pre.code-block {
+      background: #2d2d2d;
+      color: #ccc;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      max-width: 100%;
+      white-space: pre-wrap;
+      word-break: break-all;
+      box-sizing: border-box;
+      overflow-x: auto;
+      display: block;
+    }
+
+    /* Target specific bars to ensure hover highlight */
+    svg rect.bar:hover,
+    svg rect.bar.solid:hover,
+    svg rect.bar.hollow:hover {
+      fill: #ff6b6b !important;
+      stroke: #ff6b6b !important;
+      stroke-dasharray: 0 !important;
+      opacity: 1 !important;
       cursor: pointer;
     }
   </style>
@@ -271,9 +408,12 @@
         let reqln = null;
         for (let ln of sv.logs) {
           if (ln.includes('airListSchSv(req)')) {
-            let tmp = ln.match(/(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d) \[http-nio/)[1];
-            let dt = new Date(sv.endTimeRaw) - new Date(tmp);
-            if (Math.abs(dt - sv.processingTime) < 1000) { reqln = ln; break }
+            let matches = ln.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[http-nio/);
+            if (matches) {
+              let tmp = matches[1];
+              let dt = new Date(sv.endTimeRaw) - new Date(tmp);
+              if (Math.abs(dt - sv.processingTime) < 1000) { reqln = ln; break }
+            }
           }
         }
         if (!reqln) continue;
@@ -297,12 +437,14 @@
       // Size per nLegs
       let travpSizes = [[], [], [], [], [], [], [], [], [], [], []]; // 0..10 legs
       for (let sv of travp) { travpSizes[sv.nLegs].push(sv); }
-      for (ln in travpSizes) { let s = travpSizes[ln]; s.sort((a, b) => a.lastGoodsCount - b.lastGoodsCount); console.log(ln, s[0], s.slice(-1)[0], s); }
+      for (let i = 0; i < travpSizes.length; i++) {
+        travpSizes[i].sort((a, b) => a.lastGoodsCount - b.lastGoodsCount);
+      }
 
-      // Extract JSON mapping nLegs with lastGoodsCount
-      let travpCounts = [[], [], [], [], [], [], [], [], [], [], []]; // 0..10 legs
-      for (ln in travpSizes) { travpCounts[ln] = travpSizes[ln].map((sv) => sv.lastGoodsCount); }
-      return travpCounts;
+      // Add to window for console debug
+      window.TravelportResultsPerLeg = travpSizes;
+      console.debug('TravelportResultsPerLeg:', travpSizes);
+      return travpSizes;
     }
 
     function renderData(data) {
@@ -322,12 +464,19 @@
         const wrapper = container.append("div").attr("class", "histogram-container");
         wrapper.append("div").attr("class", "histogram-title").text(`Journey with ${index} Leg${index > 1 ? 's' : ''}`);
 
-        drawHistogram(wrapper, legData, tooltip);
+        const chartArea = wrapper.append("div").attr("class", "chart-area");
+
+        // Add details view
+        const details = wrapper.append("details").attr("class", "details-container");
+        details.append("summary").text("Case Details").attr("title", "Click a bar in the histogram above to see details");
+        const detailsContent = details.append("div").attr("class", "details-content");
+
+        drawHistogram(chartArea, legData, tooltip, details, detailsContent);
         console.log(`Histogram rendered for journey with ${index} leg`);
       });
     }
 
-    function drawHistogram(container, data, tooltip) {
+    function drawHistogram(container, data, tooltip, detailsPanel, detailsContent) {
       const margin = { top: 20, right: 30, bottom: 50, left: 60 };
       const width = 800 - margin.left - margin.right;
       const height = 400 - margin.top - margin.bottom;
@@ -338,23 +487,33 @@
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
+      const values = data.map(d => d.lastGoodsCount);
+
       // X scale
       const x = d3.scaleLinear()
-        .domain([0, d3.max(data)])
+        .domain([0, d3.max(values)])
         .nice()
         .range([0, width]);
 
       // Y scale
       const histogram = d3.bin()
         .domain(x.domain())
-        .thresholds(x.ticks(10 + Math.min(data.length / 20, 100))); // Adjust number of bins
+        .thresholds(x.ticks(10 + Math.min(values.length / 20, 100))); // Adjust number of bins
 
-      const bins = histogram(data);
+      const bins = histogram(values);
+      // Map back to original objects
+      bins.forEach(bin => {
+        bin.cases = data.filter(d => d.lastGoodsCount >= bin.x0 && d.lastGoodsCount < bin.x1);
+      });
+
+      const maxCount = d3.max(bins, d => d.length);
+      const threshold = maxCount * 0.03; // 3%
 
       const y = d3.scaleLinear()
-        .domain([0, d3.max(bins, d => d.length)])
+        .domain([0, maxCount])
         .nice()
         .range([height, 0]);
+      const yZoom = d3.scaleLinear().domain([0, 1]).range([10, height]);
 
       // Add X axis
       svg.append("g")
@@ -378,18 +537,37 @@
         .attr("text-anchor", "middle")
         .text("Number of Search Cases");
 
+      // Store selection for highlighting
+      let selectedBar = null;
+
       // Add bars
-      svg.selectAll(".bar")
+      const barGroups = svg.selectAll(".bar-group")
         .data(bins)
-        .enter().append("rect")
-        .attr("class", "bar")
+        .enter().append("g")
+        .attr("class", "bar-group");
+
+      // Solid bars
+      barGroups.append("rect")
+        .attr("class", "bar solid")
         .attr("x", d => x(d.x0) + 1)
         .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
         .attr("y", d => y(d.length))
-        .attr("height", d => height - y(d.length))
+        .attr("height", d => height - y(d.length));
+
+      // Hollow bars for tails (C <= T)
+      barGroups.filter(d => d.length > 0 && d.length <= threshold)
+        .append("rect")
+        .attr("class", "bar hollow")
+        .attr("x", d => x(d.x0) + 1)
+        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+        .attr("y", d => height - yZoom(d.length / threshold))
+        .attr("height", d => yZoom(d.length / threshold));
+
+      // Unified event handling
+      barGroups.selectAll("rect")
         .on("mouseover", (event, d) => {
           tooltip.style("opacity", 1)
-            .html(`Range: ${d.x0} - ${d.x1}<br/>Count: ${d.length}`)
+            .html(`Range: ${d3.format(',')(d.x0)} - ${d3.format(',')(d.x1)}<br/>Count: ${d.length}`)
             .style("left", (event.pageX + 10) + "px")
             .style("top", (event.pageY - 28) + "px");
         })
@@ -399,10 +577,22 @@
         })
         .on("mouseout", () => {
           tooltip.style("opacity", 0);
+        })
+        .on("click", (event, d) => {
+          // Highlight selected bar
+          svg.selectAll("rect").classed("selected", false);
+          d3.select(event.currentTarget.parentNode).selectAll("rect").classed("selected", true);
+
+          // Render details
+          detailsPanel.attr("open", true);
+          renderCaseDetails(detailsContent, d.cases, d.x0, d.x1);
+
+          // Scroll to details if not fully visible
+          detailsPanel.node().scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
 
       // Add mean marker
-      const mean = d3.mean(data);
+      const mean = d3.mean(values);
       if (mean !== undefined) {
         svg.append("line")
           .attr("class", "mean-line")
@@ -423,6 +613,55 @@
           .attr("font-weight", "600")
           .text(`Mean: ${d3.format(",.2f")(mean)}`);
       }
+    }
+
+    function renderCaseDetails(container, cases, x0, x1) {
+      container.html("");
+      container.append("h4").text(`Top Cases in range ${x0} - ${x1} (Showing last 10)`);
+
+      if (cases.length === 0) {
+        container.append("p").text("No cases in this range.");
+        return;
+      }
+
+      // Just pick the last 10 cases
+      const displayCases = cases.slice(-10).reverse();
+      window.currentCases = displayCases; console.debug(`currentCases for ${displayCases[0].nLegs} legs from ${x0} to ${x1}:`, displayCases); // for console debug
+
+      displayCases.forEach((c, i) => {
+        const item = container.append("div").attr("class", "case-item");
+        const details = item.append("details");
+        const summary = details.append("summary").attr("class", "case-header");
+
+        const left = summary.append("div");
+        left.append("span").attr("class", "case-title").text(`Case ${cases.length - i}: ${d3.format(',')(c.lastGoodsCount)} Combos`);
+        left.append("div").attr("class", "case-meta").text(`${c.endTimeRaw} - ${d3.format(',')(c.processingTime)} ms | ${c.threadId}`);
+
+
+        summary.append("div").attr("class", "case-meta").text(`${d3.format(',')(c.processingTime)} ms`);
+
+        const content = details.append("div").attr("class", "case-content");
+
+        if (c.request) {
+          content.append("strong").text("Request Parameters:");
+          const reqWrapper = content.append("div")
+            .style("width", "100%")
+            .style("max-width", "100%")
+            .style("box-sizing", "border-box")
+            .style("overflow-x", "auto");
+          const reqPre = reqWrapper.append("pre").attr("class", "code-block");
+          reqPre.text(JSON.stringify(c.request, null, 2));
+        }
+
+        content.append("strong").text("Full Logs:");
+        const logWrapper = content.append("div")
+          .style("width", "100%")
+          .style("max-width", "100%")
+          .style("box-sizing", "border-box")
+          .style("overflow-x", "auto");
+        const logPre = logWrapper.append("pre").attr("class", "code-block");
+        logPre.text(c.logs.join("\n"));
+      });
     }
 
     loadAndDraw();
