@@ -2,317 +2,431 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Histogram of Number of Flight Search Results</title>
-    <script src="https://d3js.org/d3.v7.min.js"></script>
-    <style>
-        :root {
-            --primary-color: #4a90e2;
-            --secondary-color: #f5f7fa;
-            --text-color: #333;
-            --accent-color: #ff6b6b;
-            --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Histogram of Number of Flight Search Results</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --secondary-color: #f5f7fa;
+      --text-color: #333;
+      --accent-color: #ff6b6b;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
 
-        body {
-            font-family: 'Inter', system-ui, -apple-system, sans-serif;
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 2rem;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--secondary-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
 
-        header {
-            margin-bottom: 2rem;
-            text-align: center;
-        }
+    header {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
 
-        h1 {
-            font-size: 2.5rem;
-            margin-bottom: 0.5rem;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      /* Gradient text by background color: -webkit-text-fill-color: transparent */
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
 
-        .histogram-container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: var(--shadow);
-            padding: 2rem;
-            margin-bottom: 2rem;
-            width: 100%;
-            max-width: 900px;
-        }
+    .histogram-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      width: 100%;
+      max-width: 900px;
+    }
 
-        .histogram-title {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-            color: #555;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 0.5rem;
-        }
+    .histogram-title {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #555;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 0.5rem;
+    }
 
-        .bar {
-            fill: var(--primary-color);
-            transition: fill 0.2s;
-        }
+    .bar {
+      fill: var(--primary-color);
+      transition: fill 0.2s;
+    }
 
-        .bar:hover {
-            fill: var(--accent-color);
-        }
+    .bar:hover {
+      fill: var(--accent-color);
+    }
 
-        .axis-label {
-            font-size: 0.85rem;
-            fill: #777;
-        }
+    .axis-label {
+      font-size: 0.85rem;
+      fill: #777;
+    }
 
-        .tooltip {
-            position: absolute;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 0.85rem;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.2s;
-            z-index: 100;
-        }
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
 
-        .no-data {
-            font-style: italic;
-            color: #999;
-        }
+    .no-data {
+      font-style: italic;
+      color: #999;
+    }
 
-        .controls {
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            background: white;
-            padding: 1rem 2rem;
-            border-radius: 50px;
-            box-shadow: var(--shadow);
-        }
+    .controls {
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: white;
+      padding: 0.7rem 1.3rem;
+      border-radius: 50px;
+      box-shadow: var(--shadow);
+    }
 
-        .file-input-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-        }
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+    }
 
-        .btn-upload {
-            border: 2px solid var(--primary-color);
-            color: var(--primary-color);
-            background-color: white;
-            padding: 8px 20px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
+    .btn-upload {
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      background-color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
 
-        .btn-upload:hover {
-            background-color: var(--primary-color);
-            color: white;
-        }
+    .btn-upload:hover {
+      background-color: var(--primary-color);
+      color: white;
+    }
 
-        #file-input {
-            font-size: 100px;
-            /* Make it overlayed by our .btn-upload: position: absolute */
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-        }
-    </style>
+    #file-input {
+      font-size: 100px;
+      /* Make it overlayed by our .btn-upload: position: absolute */
+      position: absolute;
+      left: 0;
+      top: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+  </style>
 </head>
 
 <body>
 
-    <header>
-        <h1>Histogram of Number of Flight Search Results</h1>
-        <p>Visualizing results count distribution per journey leg count</p>
-    </header>
+  <header>
+    <h1>Histogram of Number of Flight Search Results</h1>
+    <p>Visualizing results count distribution per journey leg count</p>
+  </header>
 
-    <div class="controls">
-        <div class="file-input-wrapper">
-            <button class="btn-upload">Upload JSON</button>
-            <input type="file" id="file-input" accept=".json" />
-        </div>
-        <span id="file-name" style="font-size: 0.9rem; color: #666;">size-per-leg.json (default)</span>
+  <div class="controls">
+    <div class="file-input-wrapper">
+      <button class="btn-upload">Upload Log</button>
+      <input type="file" id="file-input" />
     </div>
+    <span id="file-name" style="font-size: 0.9rem; color: #666;">test-histogram.log (default)</span>
+  </div>
 
-    <div id="histograms"></div>
-    <div id="tooltip" class="tooltip"></div>
+  <div id="histograms"></div>
+  <div id="tooltip" class="tooltip"></div>
 
-    <script>
-        const container = d3.select("#histograms");
-        const tooltip = d3.select("#tooltip");
-        const fileInput = document.getElementById('file-input');
-        const fileNameDisplay = document.getElementById('file-name');
+  <script>
+    const container = d3.select("#histograms");
+    const tooltip = d3.select("#tooltip");
+    const fileInput = document.getElementById('file-input');
+    const fileNameDisplay = document.getElementById('file-name');
 
-        async function loadAndDraw(source = 'size-per-leg.json') {
-            try {
-                let data;
-                if (typeof source === 'string') {
-                    const response = await fetch(source);
-                    data = await response.json();
-                } else {
-                    data = source;
-                }
+    async function loadAndDraw(logFile = 'test-histogram.log', log = null) {
+      try {
+        if (!log && logFile) {
+          const response = await fetch(logFile);
+          log = await response.text();
+        }
+        let data = parseLog(log);
+        renderData(data);
+      } catch (error) {
+        console.error("Error loading/rendering log:", error);
+        container.html("");
+        container.append("p").text("Error loading/rendering data. Make sure the file is valid log.").style("color", "red");
+      }
+    }
 
-                renderData(data);
-            } catch (error) {
-                console.error("Error loading/rendering JSON:", error);
-                container.html("");
-                container.append("p").text("Error loading/rendering data. Make sure the file is valid JSON.").style("color", "red");
-            }
+    fileInput.addEventListener('change', function (e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      fileNameDisplay.textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const log = event.target.result;
+        loadAndDraw(file.name, log);
+      };
+      reader.readAsText(file);
+    });
+
+    function parseLogEvents(log) {
+      let events = [];
+      let activeCalls = new Map(); // threadId -> callInfo
+
+      // Example: 2025-11-09 22:39:22 [http-nio-8080-exec-258]   [AirListSchSvImpl#airListSchSv()] : START
+      let headerRegex = /(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2})\s\[([^\]]+)\](.*)/;
+      let startRegex = /\[AirListSchSvImpl#airListSchSv\(\)\] : START/;
+      let requestRegex = /INFO.+airListSchSv\(req\) : 検索文字列 \[([^\]]+)\]/;
+      let endRegex = /\[AirListSchSvImpl#airListSchSv\(\)\] : END.*?Processing\s+time\s+\[([^\]]+)\]\s+ms(?:\s+lastGoodsCount\s+:\s+(\d+))?/;
+      for (let line of log.split('\n')) {
+        const headerMatch = line.match(headerRegex);
+        if (!headerMatch) continue;
+
+        const logDateStr = headerMatch[1];
+        const logTimeStr = headerMatch[2];
+        const threadId = headerMatch[3];
+        const logTimeFullStr = `${logDateStr} ${logTimeStr}`;
+        const timestamp = new Date(logTimeFullStr).getTime();
+        const logContent = headerMatch[4];
+
+        const startMatch = logContent.match(startRegex);
+        const requestMatch = logContent.match(requestRegex);
+        if (startMatch || requestMatch) {
+          if (!activeCalls.has(threadId)) {
+            activeCalls.set(threadId, {
+              startTime: timestamp,
+              startTimeRaw: logTimeFullStr,
+              threadId,
+              logs: [line],
+            });
+          } else {
+            // Already tracking this thread -> update log and maybe start time
+            const call = activeCalls.get(threadId);
+            if (!call.startTime) call.startTime = timestamp;
+            if (!call.startTimeRaw) call.startTimeRaw = logTimeFullStr;
+            call.logs.push(line);
+          }
         }
 
-        fileInput.addEventListener('change', function (e) {
-            const file = e.target.files?.[0];
-            if (!file) return;
+        //TODO: handle preference: start or end
+        const endMatch = line.match(endRegex);
+        if (endMatch) {
+          const procTimeMatch = endMatch[1];
+          let procTime = 0;
+          let gds = null;
 
-            fileNameDisplay.textContent = file.name;
-            const reader = new FileReader();
-            reader.onload = function (event) {
-                const data = JSON.parse(event.target.result);
-                loadAndDraw(data);
-            };
-            reader.readAsText(file);
+          // Decode airListSchSv metrics
+          const parts = procTimeMatch.split(',').map(s => s.trim());
+          procTime = parseInt(parts[parts.length - 1], 10);
+          const gdsMap = { 'IN': 'Infini', 'AP': 'Galileo (Apollo)', 'AM': 'Amadeus' };
+          gds = gdsMap[parts[0]] || parts[0];
+
+          const activeCall = activeCalls.get(threadId);
+
+          // Create event from accumulated data
+          events.push({
+            startTime: activeCall ? activeCall.startTime : null,
+            startTimeRaw: activeCall ? activeCall.startTimeRaw : null,
+            endTime: timestamp,
+            endTimeRaw: logTimeFullStr,
+            threadId: threadId,
+            processingTime: procTime,
+            lastGoodsCount: endMatch[2] ? parseInt(endMatch[2], 10) : null,
+            gds,
+            logs: (activeCall ? activeCall.logs : []).concat([line])
+          });
+          activeCalls.delete(threadId);
+        }
+      }
+      return events;
+    }
+
+    function parseLog(log) {
+      let events = parseLogEvents(log);
+
+      // Extract Travelport (Galileo[AP])
+      let travp = events.filter((sv) => sv.endTimeRaw && sv.lastGoodsCount > 0 && sv.gds && sv.gds.includes('Galileo'));
+      // Extract sv.request
+      for (let sv of travp) {
+        let reqln = null;
+        for (let ln of sv.logs) {
+          if (ln.includes('airListSchSv(req)')) {
+            let tmp = ln.match(/(\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d) \[http-nio/)[1];
+            let dt = new Date(sv.endTimeRaw) - new Date(tmp);
+            if (Math.abs(dt - sv.processingTime) < 1000) { reqln = ln; break }
+          }
+        }
+        if (!reqln) continue;
+        let m = reqln.match(/\[(FLT_KND=.*)\]/);
+        if (!m) { console.info('unmatched req pattern', sv); continue }
+        reqln = m[1];
+        let json = '{"' + reqln.replaceAll('=', '":"').replaceAll(',', '","') + '"}';
+        sv.request = { str: reqln, ...JSON.parse(json) };
+      }
+
+      // Calculate sv.nLegs
+      for (let sv of travp) {
+        if (!sv.request) { sv.nLegs = 0; continue }
+        sv.nLegs = Object.keys(sv.request).reduce((nLegs, key) => {
+          let m = key.match(/DEP_CD(.*)/);
+          if (m && Number(m[1]) > nLegs) return Number(m[1]); else return nLegs
+        }
+          , 0)
+      }
+
+      // Size per nLegs
+      let travpSizes = [[], [], [], [], [], [], [], [], [], [], []]; // 0..10 legs
+      for (let sv of travp) { travpSizes[sv.nLegs].push(sv); }
+      for (ln in travpSizes) { let s = travpSizes[ln]; s.sort((a, b) => a.lastGoodsCount - b.lastGoodsCount); console.log(ln, s[0], s.slice(-1)[0], s); }
+
+      // Extract JSON mapping nLegs with lastGoodsCount
+      let travpCounts = [[], [], [], [], [], [], [], [], [], [], []]; // 0..10 legs
+      for (ln in travpSizes) { travpCounts[ln] = travpSizes[ln].map((sv) => sv.lastGoodsCount); }
+      return travpCounts;
+    }
+
+    function renderData(data) {
+      container.html("");
+
+      if (!data || data.length === 0) {
+        container.append("p").text("No data found").attr("class", "no-data");
+        return;
+      }
+
+      data.forEach((legData, index) => {
+        if (!legData || legData.length === 0) {
+          console.log(`No data found for journey with ${index} leg`);
+          return;
+        }
+
+        const wrapper = container.append("div").attr("class", "histogram-container");
+        wrapper.append("div").attr("class", "histogram-title").text(`Journey with ${index} Leg${index > 1 ? 's' : ''}`);
+
+        drawHistogram(wrapper, legData, tooltip);
+        console.log(`Histogram rendered for journey with ${index} leg`);
+      });
+    }
+
+    function drawHistogram(container, data, tooltip) {
+      const margin = { top: 20, right: 30, bottom: 50, left: 60 };
+      const width = 800 - margin.left - margin.right;
+      const height = 400 - margin.top - margin.bottom;
+
+      const svg = container.append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      // X scale
+      const x = d3.scaleLinear()
+        .domain([0, d3.max(data)])
+        .nice()
+        .range([0, width]);
+
+      // Y scale
+      const histogram = d3.bin()
+        .domain(x.domain())
+        .thresholds(x.ticks(10 + Math.min(data.length / 20, 100))); // Adjust number of bins
+
+      const bins = histogram(data);
+
+      const y = d3.scaleLinear()
+        .domain([0, d3.max(bins, d => d.length)])
+        .nice()
+        .range([height, 0]);
+
+      // Add X axis
+      svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x))
+        .append("text")
+        .attr("class", "axis-label")
+        .attr("x", width / 2)
+        .attr("y", 40)
+        .attr("text-anchor", "middle")
+        .text("Number of Flight Options (Combos)");
+
+      // Add Y axis
+      svg.append("g")
+        .call(d3.axisLeft(y))
+        .append("text")
+        .attr("class", "axis-label")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -height / 2)
+        .attr("y", -45)
+        .attr("text-anchor", "middle")
+        .text("Number of Search Cases");
+
+      // Add bars
+      svg.selectAll(".bar")
+        .data(bins)
+        .enter().append("rect")
+        .attr("class", "bar")
+        .attr("x", d => x(d.x0) + 1)
+        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+        .attr("y", d => y(d.length))
+        .attr("height", d => height - y(d.length))
+        .on("mouseover", (event, d) => {
+          tooltip.style("opacity", 1)
+            .html(`Range: ${d.x0} - ${d.x1}<br/>Count: ${d.length}`)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mousemove", (event) => {
+          tooltip.style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", () => {
+          tooltip.style("opacity", 0);
         });
 
-        function renderData(data) {
-            container.html("");
+      // Add mean marker
+      const mean = d3.mean(data);
+      if (mean !== undefined) {
+        svg.append("line")
+          .attr("class", "mean-line")
+          .attr("x1", x(mean))
+          .attr("x2", x(mean))
+          .attr("y1", 0)
+          .attr("y2", height)
+          .attr("stroke", "var(--accent-color)")
+          .attr("stroke-width", 2)
+          .attr("stroke-dasharray", "4,4");
 
-            if (!data || data.length === 0) {
-                container.append("p").text("No data found").attr("class", "no-data");
-                return;
-            }
+        svg.append("text")
+          .attr("class", "mean-label")
+          .attr("x", x(mean) + 5)
+          .attr("y", 15)
+          .attr("fill", "var(--accent-color)")
+          .attr("font-size", "0.85rem")
+          .attr("font-weight", "600")
+          .text(`Mean: ${d3.format(",.2f")(mean)}`);
+      }
+    }
 
-            data.forEach((legData, index) => {
-                if (!legData || legData.length === 0) {
-                    console.log(`No data found for journey with ${index} leg`);
-                    return;
-                }
-
-                const wrapper = container.append("div").attr("class", "histogram-container");
-                wrapper.append("div").attr("class", "histogram-title").text(`Journey with ${index} Leg${index > 1 ? 's' : ''}`);
-
-                drawHistogram(wrapper, legData, tooltip);
-                console.log(`Histogram rendered for journey with ${index} leg`);
-            });
-        }
-
-        function drawHistogram(container, data, tooltip) {
-            const margin = { top: 20, right: 30, bottom: 50, left: 60 };
-            const width = 800 - margin.left - margin.right;
-            const height = 400 - margin.top - margin.bottom;
-
-            const svg = container.append("svg")
-                .attr("width", width + margin.left + margin.right)
-                .attr("height", height + margin.top + margin.bottom)
-                .append("g")
-                .attr("transform", `translate(${margin.left},${margin.top})`);
-
-            // X scale
-            const x = d3.scaleLinear()
-                .domain([0, d3.max(data)])
-                .nice()
-                .range([0, width]);
-
-            // Y scale
-            const histogram = d3.bin()
-                .domain(x.domain())
-                .thresholds(x.ticks(10 + Math.min(data.length / 20, 100))); // Adjust number of bins
-
-            const bins = histogram(data);
-
-            const y = d3.scaleLinear()
-                .domain([0, d3.max(bins, d => d.length)])
-                .nice()
-                .range([height, 0]);
-
-            // Add X axis
-            svg.append("g")
-                .attr("transform", `translate(0,${height})`)
-                .call(d3.axisBottom(x))
-                .append("text")
-                .attr("class", "axis-label")
-                .attr("x", width / 2)
-                .attr("y", 40)
-                .attr("text-anchor", "middle")
-                .text("Number of Results");
-
-            // Add Y axis
-            svg.append("g")
-                .call(d3.axisLeft(y))
-                .append("text")
-                .attr("class", "axis-label")
-                .attr("transform", "rotate(-90)")
-                .attr("x", -height / 2)
-                .attr("y", -45)
-                .attr("text-anchor", "middle")
-                .text("Frequency");
-
-            // Add bars
-            svg.selectAll(".bar")
-                .data(bins)
-                .enter().append("rect")
-                .attr("class", "bar")
-                .attr("x", d => x(d.x0) + 1)
-                .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
-                .attr("y", d => y(d.length))
-                .attr("height", d => height - y(d.length))
-                .on("mouseover", (event, d) => {
-                    tooltip.style("opacity", 1)
-                        .html(`Range: ${d.x0} - ${d.x1}<br/>Count: ${d.length}`)
-                        .style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 28) + "px");
-                })
-                .on("mousemove", (event) => {
-                    tooltip.style("left", (event.pageX + 10) + "px")
-                        .style("top", (event.pageY - 28) + "px");
-                })
-                .on("mouseout", () => {
-                    tooltip.style("opacity", 0);
-                });
-
-            // Add mean marker
-            const mean = d3.mean(data);
-            if (mean !== undefined) {
-                svg.append("line")
-                    .attr("class", "mean-line")
-                    .attr("x1", x(mean))
-                    .attr("x2", x(mean))
-                    .attr("y1", 0)
-                    .attr("y2", height)
-                    .attr("stroke", "var(--accent-color)")
-                    .attr("stroke-width", 2)
-                    .attr("stroke-dasharray", "4,4");
-
-                svg.append("text")
-                    .attr("class", "mean-label")
-                    .attr("x", x(mean) + 5)
-                    .attr("y", 15)
-                    .attr("fill", "var(--accent-color)")
-                    .attr("font-size", "0.85rem")
-                    .attr("font-weight", "600")
-                    .text(`Mean: ${d3.format(",.2f")(mean)}`);
-            }
-        }
-
-        loadAndDraw();
-    </script>
+    loadAndDraw();
+  </script>
 
 </body>
 
