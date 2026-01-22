@@ -1,16 +1,19 @@
 import * as d3 from "d3";
 import GCGraphConfig, { formatCountHuman, formatDurationHuman, formatTimestampInTz } from './config.js';
 
+// Example: 2025-11-09 22:39:22 [http-nio-8080-exec-258]
+const headerRegex = /(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2})\s\[([^\]]+)\]/;
+const logLineRegex = new RegExp(`${headerRegex.source}(.*)`);
+const startRegex = /\[([a-zA-Z0-9_]+)#([a-zA-Z0-9_]+\(\))\]\s+:\s+START/;
+const endRegex = /\[([a-zA-Z0-9_]+)#([a-zA-Z0-9_]+\(\))\]\s+:\s+END.*?Processing\s+time\s+\[([^\]]+)\]\s+ms(?:\s+lastGoodsCount\s+:\s+(\d+))?/;
+const hknRegex = /Total time for getHknAgtInfo: \(ms\) (\d+)/;
+
+
 const ServiceLogExtension = {
   name: 'ServiceLog',
   _events: [],
   _activeCalls: new Map(), // threadId -> callInfo
 
-  // Example: 2025-11-09 22:39:22 [http-nio-8080-exec-258]
-  _headerRegex: /(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2})\s\[([^\]]+)\]/,
-  _startRegex: /\[([a-zA-Z0-9_]+)#([a-zA-Z0-9_]+\(\))\]\s+:\s+START/,
-  _endRegex: /\[([a-zA-Z0-9_]+)#([a-zA-Z0-9_]+\(\))\]\s+:\s+END.*?Processing\s+time\s+\[([^\]]+)\]\s+ms(?:\s+lastGoodsCount\s+:\s+(\d+))?/,
-  _hknRegex: /Total time for getHknAgtInfo: \(ms\) (\d+)/,
 
   reset() {
     this._events = [];
@@ -19,13 +22,14 @@ const ServiceLogExtension = {
   },
 
   parse(line) {
-    const headerMatch = line.match(this._headerRegex);
-    if (!headerMatch) return false;
+    const logLineMatch = line.match(logLineRegex);
+    if (!logLineMatch) return false;
 
-    const logDateStr = headerMatch[1];
-    const logTimeStr = headerMatch[2];
-    const threadId = headerMatch[3];
+    const logDateStr = logLineMatch[1];
+    const logTimeStr = logLineMatch[2];
+    const threadId = logLineMatch[3];
     const logTimeFullStr = `${logDateStr} ${logTimeStr}`;
+    const logContent = logLineMatch[4];
 
     // Rely on Log/Server Time only
     // Initial parse uses local time if offset unknown; we'll fix this in finish()
@@ -33,7 +37,7 @@ const ServiceLogExtension = {
     const timestamp = new Date(logDateStr + 'T' + logTimeStr + offset);
     if (isNaN(timestamp.getTime())) return false;
 
-    const startMatch = line.match(this._startRegex);
+    const startMatch = logContent.match(startRegex);
     if (startMatch) {
       const className = startMatch[1];
       const methodName = startMatch[2];
@@ -64,7 +68,7 @@ const ServiceLogExtension = {
       // For non-service methods (start), fall through to collect log
     }
 
-    const endMatch = line.match(this._endRegex);
+    const endMatch = logContent.match(endRegex);
     if (endMatch) {
       const className = endMatch[1];
       const methodName = endMatch[2];
@@ -150,7 +154,7 @@ const ServiceLogExtension = {
     }
 
     const call = this._activeCalls.get(threadId);
-    const hknMatch = line.match(this._hknRegex);
+    const hknMatch = logContent.match(hknRegex);
     if (hknMatch) {
       call.hknAgtTimes.push(parseInt(hknMatch[1], 10));
     } else {
@@ -390,7 +394,7 @@ const ServiceLogExtension = {
             </div>
             <div style="background: ${CONST.popup.codeBackground}; color: ${CONST.popup.codeColor}; padding: 10px; border-radius: 4px; font-family: monospace; white-space: pre-wrap; font-size: 12px; border: ${CONST.popup.codeBorder}; max-height: 50vh; overflow-y: auto;"
             >${d.logs.map(line => {
-            const m = line.match(ServiceLogExtension._headerRegex);
+            const m = line.match(headerRegex);
             if (m) {
               // Replace full header with time (Group 2)
               return `(${m[2]}) ${line.substring(m.index + m[0].length)}`;
