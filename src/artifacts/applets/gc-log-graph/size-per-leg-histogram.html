@@ -47,11 +47,9 @@
       box-shadow: var(--shadow);
       padding: 2rem;
       margin-bottom: 2rem;
-      width: 100%;
-      max-width: 900px;
+      width: 900px;
       box-sizing: border-box;
       overflow: hidden;
-      /* Prevent child content from expanding width */
     }
 
     .histogram-title {
@@ -113,14 +111,61 @@
     }
 
     .controls {
-      margin-bottom: 2rem;
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 1rem;
+      column-gap: 1.5rem;
+      row-gap: 0.5rem;
+      width: 860px;
+      margin-bottom: 2rem;
       background: white;
       padding: 0.7rem 1.3rem;
-      border-radius: 50px;
+      border-radius: 30px;
       box-shadow: var(--shadow);
+    }
+
+    .break {
+      /* Forced break in flexbox with 100% width */
+      flex-basis: 100%;
+      height: 0;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .control-group input[type="number"] {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+
+    .cutoff-line {
+      stroke: var(--accent-color);
+      stroke-width: 2;
+      stroke-dasharray: 4, 4;
+    }
+
+    .cutoff-label {
+      fill: var(--accent-color);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .mean-line {
+      stroke: #20c997;
+      /* Green-blue highlight */
+      stroke-width: 2;
+      stroke-dasharray: 4, 4;
+    }
+
+    .mean-label {
+      fill: #20c997;
+      font-size: 0.85rem;
+      font-weight: 600;
     }
 
     .file-input-wrapper {
@@ -152,14 +197,11 @@
       position: absolute;
       left: 0;
       top: 0;
+      height: 40px;
       opacity: 0;
       cursor: pointer;
     }
 
-    /*FIXME: Width expanded when case-item is opened!
-    - When case-item is folded:  details-container = 800, histograms = 864
-    - When case-item is opened: details-container = 836, histograms = 900 (max-width)
-    */
     .details-container {
       margin-top: 1.5rem;
       border-top: 1px solid #eee;
@@ -254,11 +296,14 @@
       font-size: 0.8rem;
       margin-top: 0.5rem;
       max-width: 100%;
-      white-space: pre-wrap;
       word-break: break-all;
       box-sizing: border-box;
       overflow-x: auto;
       display: block;
+    }
+
+    pre.wrap {
+      white-space: pre-wrap;
     }
 
     /* Target specific bars to ensure hover highlight */
@@ -287,6 +332,17 @@
       <input type="file" id="file-input" />
     </div>
     <span id="file-name" style="font-size: 0.9rem; color: #666;">test-histogram.log (default)</span>
+    <div class="break"></div>
+    <div class="control-group">
+      <label for="cutoff-threshold">Cutoff Threshold:</label>
+      <input type="number" id="cutoff-threshold" value="2000" step="100" style="width: 80px;"
+        title="Cutoff threshold for long-tailed combos" />
+    </div>
+    <div class="control-group" title="Hollow bars to scale up solid bars below 3%">
+      <label for="magnified-toggle">Magnified Histogram</label>
+      <input type="checkbox" id="magnified-toggle" checked />
+    </div>
+    <div id="global-summary" style="font-size: 0.9rem; font-weight: 600; color: #555; margin-left: auto;"></div>
   </div>
 
   <div id="histograms"></div>
@@ -297,6 +353,11 @@
     const tooltip = d3.select("#tooltip");
     const fileInput = document.getElementById('file-input');
     const fileNameDisplay = document.getElementById('file-name');
+    const cutoffInput = document.getElementById('cutoff-threshold');
+    const magnifiedToggle = document.getElementById('magnified-toggle');
+    const globalSummary = document.getElementById('global-summary');
+
+    let currentLogData = null; // Store data for re-rendering
 
     async function loadAndDraw(logFile = 'test-histogram.log', log = null) {
       try {
@@ -305,6 +366,7 @@
           log = await response.text();
         }
         let data = parseLog(log);
+        currentLogData = data;
         renderData(data);
       } catch (error) {
         console.error("Error loading/rendering log:", error);
@@ -324,6 +386,14 @@
         loadAndDraw(file.name, log);
       };
       reader.readAsText(file);
+    });
+
+    cutoffInput.addEventListener('input', () => {
+      if (currentLogData) renderData(currentLogData);
+    });
+
+    magnifiedToggle.addEventListener('change', () => {
+      if (currentLogData) renderData(currentLogData);
     });
 
     function parseLogEvents(log) {
@@ -452,8 +522,13 @@
 
       if (!data || data.length === 0) {
         container.append("p").text("No data found").attr("class", "no-data");
+        globalSummary.textContent = "";
         return;
       }
+
+      const globalCutoff = parseInt(cutoffInput.value, 10) || 3000;
+      let totalCutoffCount = 0;
+      let totalCasesCount = 0;
 
       data.forEach((legData, index) => {
         if (!legData || legData.length === 0) {
@@ -461,8 +536,23 @@
           return;
         }
 
+        const count = legData.length;
+        const cutoffCount = legData.filter(d => d.lastGoodsCount >= globalCutoff).length;
+        const cutoffPct = ((cutoffCount / count) * 100).toFixed(1);
+        totalCutoffCount += cutoffCount;
+        totalCasesCount += count;
+
         const wrapper = container.append("div").attr("class", "histogram-container");
-        wrapper.append("div").attr("class", "histogram-title").text(`Journey with ${index} Leg${index > 1 ? 's' : ''}`);
+        const titleLine = wrapper.append("div").attr("class", "histogram-title");
+        titleLine.append("span").text(`Journey with ${index} Leg${index > 1 ? 's' : ''} (Total: ${d3.format(",")(count)})`);
+
+        if (cutoffCount > 0) {
+          titleLine.append("span")
+            .style("margin-left", "1rem")
+            .style("font-size", "0.9rem")
+            .style("color", "var(--accent-color)")
+            .text(`(${cutoffCount} cutoff cases, ${cutoffPct}%)`);
+        }
 
         const chartArea = wrapper.append("div").attr("class", "chart-area");
 
@@ -471,12 +561,16 @@
         details.append("summary").text("Case Details").attr("title", "Click a bar in the histogram above to see details");
         const detailsContent = details.append("div").attr("class", "details-content");
 
-        drawHistogram(chartArea, legData, tooltip, details, detailsContent);
+        drawHistogram(chartArea, legData, tooltip, details, detailsContent, globalCutoff);
         console.log(`Histogram rendered for journey with ${index} leg`);
       });
+
+      const globalPct = totalCasesCount > 0 ? ((totalCutoffCount / totalCasesCount) * 100).toFixed(1) : 0;
+      globalSummary.textContent = `Total Cases: ${d3.format(",")(totalCasesCount)} | Cutoff: ${d3.format(",")(totalCutoffCount)} (${globalPct}%)`;
     }
 
-    function drawHistogram(container, data, tooltip, detailsPanel, detailsContent) {
+    function drawHistogram(container, data, tooltip, detailsPanel, detailsContent, globalCutoff) {
+      const isMagnified = magnifiedToggle.checked;
       const margin = { top: 20, right: 30, bottom: 50, left: 60 };
       const width = 800 - margin.left - margin.right;
       const height = 400 - margin.top - margin.bottom;
@@ -507,7 +601,8 @@
       });
 
       const maxCount = d3.max(bins, d => d.length);
-      const threshold = maxCount * 0.03; // 3%
+      const scaleFactor = 0.03; // 3%
+      const zoomThreshold = maxCount * scaleFactor;
 
       const y = d3.scaleLinear()
         .domain([0, maxCount])
@@ -554,14 +649,33 @@
         .attr("y", d => y(d.length))
         .attr("height", d => height - y(d.length));
 
-      // Hollow bars for tails (C <= T)
-      barGroups.filter(d => d.length > 0 && d.length <= threshold)
-        .append("rect")
-        .attr("class", "bar hollow")
-        .attr("x", d => x(d.x0) + 1)
-        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
-        .attr("y", d => height - yZoom(d.length / threshold))
-        .attr("height", d => yZoom(d.length / threshold));
+      // Hollow bars for tails (C <= T) if magnified is enabled
+      if (isMagnified) {
+        barGroups.filter(d => d.length > 0 && d.length <= zoomThreshold)
+          .append("rect")
+          .attr("class", "bar hollow")
+          .attr("x", d => x(d.x0) + 1)
+          .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+          .attr("y", d => height - yZoom(d.length / zoomThreshold))
+          .attr("height", d => yZoom(d.length / zoomThreshold));
+      }
+
+      // Add cutoff line
+      svg.append("line")
+        .attr("class", "cutoff-line")
+        .attr("x1", x(globalCutoff))
+        .attr("x2", x(globalCutoff))
+        .attr("y1", 0)
+        .attr("y2", height)
+        .attr("stroke", "var(--accent-color)")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "4,4");
+
+      svg.append("text")
+        .attr("class", "cutoff-label")
+        .attr("x", x(globalCutoff) + 5)
+        .attr("y", 30) // Moved up below mean (at 15)
+        .text(`Cutoff: ${d3.format(",")(globalCutoff)}`);
 
       // Unified event handling
       barGroups.selectAll("rect")
@@ -599,18 +713,12 @@
           .attr("x1", x(mean))
           .attr("x2", x(mean))
           .attr("y1", 0)
-          .attr("y2", height)
-          .attr("stroke", "var(--accent-color)")
-          .attr("stroke-width", 2)
-          .attr("stroke-dasharray", "4,4");
+          .attr("y2", height);
 
         svg.append("text")
           .attr("class", "mean-label")
           .attr("x", x(mean) + 5)
           .attr("y", 15)
-          .attr("fill", "var(--accent-color)")
-          .attr("font-size", "0.85rem")
-          .attr("font-weight", "600")
           .text(`Mean: ${d3.format(",.2f")(mean)}`);
       }
     }
@@ -649,7 +757,7 @@
             .style("max-width", "100%")
             .style("box-sizing", "border-box")
             .style("overflow-x", "auto");
-          const reqPre = reqWrapper.append("pre").attr("class", "code-block");
+          const reqPre = reqWrapper.append("pre").attr("class", "code-block wrap");
           reqPre.text(JSON.stringify(c.request, null, 2));
         }
 
