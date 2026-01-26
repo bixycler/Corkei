@@ -416,7 +416,7 @@ function render(response) {
         table.appendChild(thead);
 
         const tbody = document.createElement('tbody');
-        const drawLines = renderPriceComboOverview(priceCombo, offerCombo.ContentSource === 'NDC', tbody);
+        const drawLines = renderPriceComboOverview(priceCombo, offerCombo.ContentSource === 'NDC', tbody, thead);
 
         // Price combo = table (Price Combo Group - Default Folded)
         const pccTitle = `<span class="price-highlight">${formatNumber(priceCombo.price)} ${priceCombo.currency}</span> <span class="combo-count">${formatNumber(priceCombo.totalComboCount)} combo(s)</span> (CC: ${ellipsizeCC(priceCombo.priceCC)})`;
@@ -476,14 +476,20 @@ function render(response) {
   }
 }
 
-function renderPriceComboOverview(priceCombo, isNdc, tbody) {
+function renderPriceComboOverview(priceCombo, isNdc, tbody, thead) {
   const maxLegs = priceCombo.legs.length;
   const overviewRow = document.createElement('tr');
   overviewRow.className = 'overview-row';
 
+  // Click header row to toggle visibility of overview row
+  thead.addEventListener('click', () => {
+    overviewRow.style.display = overviewRow.style.display === 'none' ? '' : 'none';
+  });
+
   // First cell for labels (empty or reserved)
   const firstCell = document.createElement('td');
   firstCell.style.border = 'none';
+  firstCell.innerHTML = 'Combination<br>Overview';
   overviewRow.appendChild(firstCell);
 
   const dotMaps = []; // Array of maps: legIndex -> { 'position:cc' -> dotElement }
