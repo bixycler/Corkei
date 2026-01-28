@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Histogram of Number of Flight Search Results</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --secondary-color: #f5f7fa;
+      --text-color: #333;
+      --accent-color: #ff6b6b;
+      --shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--secondary-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    header {
+      margin-bottom: 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+      /* Gradient text by background color: -webkit-text-fill-color: transparent */
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .histogram-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      width: 900px;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .histogram-title {
+      font-size: 1.5rem;
+      margin-bottom: 1.5rem;
+      color: #555;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 0.5rem;
+    }
+
+    .bar {
+      fill: var(--primary-color);
+      transition: fill 0.2s;
+      cursor: pointer;
+    }
+
+    .bar.hollow {
+      fill: rgba(74, 144, 226, 0.05);
+      stroke: var(--primary-color);
+      stroke-width: 1;
+    }
+
+    /* High specificity to ensure hover works consistently */
+    .bar:hover,
+    .bar.solid:hover,
+    .bar.hollow:hover {
+      fill: var(--accent-color) !important;
+      stroke: var(--accent-color) !important;
+      opacity: 1 !important;
+    }
+
+    .bar.selected {
+      fill: var(--accent-color) !important;
+      stroke: #fff;
+      stroke-width: 1;
+    }
+
+    .axis-label {
+      font-size: 0.85rem;
+      fill: #777;
+    }
+
+    .tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s;
+      z-index: 100;
+    }
+
+    .no-data {
+      font-style: italic;
+      color: #999;
+    }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      column-gap: 1.5rem;
+      row-gap: 0.5rem;
+      width: 860px;
+      margin-bottom: 2rem;
+      background: white;
+      padding: 0.7rem 1.3rem;
+      border-radius: 30px;
+      box-shadow: var(--shadow);
+    }
+
+    .break {
+      /* Forced break in flexbox with 100% width */
+      flex-basis: 100%;
+      height: 0;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.9rem;
+    }
+
+    .control-group input[type="number"] {
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      padding: 4px 8px;
+    }
+
+    .cutoff-line {
+      stroke: var(--accent-color);
+      stroke-width: 2;
+      stroke-dasharray: 4, 4;
+    }
+
+    .cutoff-label {
+      fill: var(--accent-color);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .mean-line {
+      stroke: #20c997;
+      /* Green-blue highlight */
+      stroke-width: 2;
+      stroke-dasharray: 4, 4;
+    }
+
+    .mean-label {
+      fill: #20c997;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    .file-input-wrapper {
+      position: relative;
+      overflow: hidden;
+      display: inline-block;
+    }
+
+    .btn-upload {
+      border: 2px solid var(--primary-color);
+      color: var(--primary-color);
+      background-color: white;
+      padding: 8px 20px;
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+
+    .btn-upload:hover {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    #file-input {
+      font-size: 100px;
+      /* Make it overlayed by our .btn-upload: position: absolute */
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 40px;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .details-container {
+      margin-top: 1.5rem;
+      border-top: 1px solid #eee;
+      padding-top: 1rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .details-container summary {
+      font-weight: 600;
+      color: #666;
+      cursor: pointer;
+      padding: 0.5rem;
+      background: #f9f9f9;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .details-content {
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    .case-item {
+      margin: 0.5rem 0;
+      border: 1px solid #eee;
+      border-radius: 8px;
+      overflow: hidden;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .case-header {
+      padding: 8px 12px;
+      background: #fff;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      user-select: none;
+      max-width: 100%;
+      box-sizing: border-box;
+      min-width: 0;
+      /* Critical for flex children to respect max-width */
+    }
+
+    .case-header>div {
+      min-width: 0;
+      /* Allow flex children to shrink */
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .case-header:hover {
+      background: #f5faff;
+    }
+
+    .case-content {
+      padding: 12px;
+      background: #fafafa;
+      border-top: 1px solid #eee;
+      font-size: 0.9rem;
+      width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      overflow-wrap: break-word;
+      word-break: break-all;
+    }
+
+    .case-title {
+      font-weight: 600;
+      color: var(--primary-color);
+    }
+
+    .case-meta {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    pre.code-block {
+      background: #2d2d2d;
+      color: #ccc;
+      padding: 1rem;
+      border-radius: 6px;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.8rem;
+      margin-top: 0.5rem;
+      max-width: 100%;
+      word-break: break-all;
+      box-sizing: border-box;
+      overflow-x: auto;
+      display: block;
+    }
+
+    pre.wrap {
+      white-space: pre-wrap;
+    }
+
+    /* Target specific bars to ensure hover highlight */
+    svg rect.bar:hover,
+    svg rect.bar.solid:hover,
+    svg rect.bar.hollow:hover {
+      fill: #ff6b6b !important;
+      stroke: #ff6b6b !important;
+      stroke-dasharray: 0 !important;
+      opacity: 1 !important;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+  <header>
+    <h1>Histogram of Number of Flight Search Results</h1>
+    <p>Visualizing results count distribution per journey leg count</p>
+  </header>
+
+  <div class="controls">
+    <div class="file-input-wrapper">
+      <button class="btn-upload">Upload Log</button>
+      <input type="file" id="file-input" />
+    </div>
+    <span id="file-name" style="font-size: 0.9rem; color: #666;">test-histogram.log (default)</span>
+    <div class="break"></div>
+    <div class="control-group">
+      <label for="cutoff-threshold">Cutoff Threshold:</label>
+      <input type="number" id="cutoff-threshold" value="2000" step="100" style="width: 80px;"
+        title="Cutoff threshold for long-tailed combos" />
+    </div>
+    <div class="control-group" title="Hollow bars to scale up solid bars below 3%">
+      <label for="magnified-toggle">Magnified Histogram</label>
+      <input type="checkbox" id="magnified-toggle" checked />
+    </div>
+    <div id="global-summary" style="font-size: 0.9rem; font-weight: 600; color: #555; margin-left: auto;"></div>
+  </div>
+
+  <div id="histograms"></div>
+  <div id="tooltip" class="tooltip"></div>
+
+  <script>
+    const container = d3.select("#histograms");
+    const tooltip = d3.select("#tooltip");
+    const fileInput = document.getElementById('file-input');
+    const fileNameDisplay = document.getElementById('file-name');
+    const cutoffInput = document.getElementById('cutoff-threshold');
+    const magnifiedToggle = document.getElementById('magnified-toggle');
+    const globalSummary = document.getElementById('global-summary');
+
+    let currentLogData = null; // Store data for re-rendering
+
+    async function loadAndDraw(logFile = 'test-histogram.log', log = null) {
+      try {
+        if (!log && logFile) {
+          const response = await fetch(logFile);
+          log = await response.text();
+        }
+        let data = parseLog(log);
+        currentLogData = data;
+        renderData(data);
+      } catch (error) {
+        console.error("Error loading/rendering log:", error);
+        container.html("");
+        container.append("p").text("Error loading/rendering data. Make sure the file is valid log.").style("color", "red");
+      }
+    }
+
+    fileInput.addEventListener('change', function (e) {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      fileNameDisplay.textContent = file.name;
+      const reader = new FileReader();
+      reader.onload = function (event) {
+        const log = event.target.result;
+        loadAndDraw(file.name, log);
+      };
+      reader.readAsText(file);
+    });
+
+    cutoffInput.addEventListener('input', () => {
+      if (currentLogData) renderData(currentLogData);
+    });
+
+    magnifiedToggle.addEventListener('change', () => {
+      if (currentLogData) renderData(currentLogData);
+    });
+
+    function parseLogEvents(log) {
+      let events = [];
+      let activeCalls = new Map(); // threadId -> callInfo
+
+      // Example: 2025-11-09 22:39:22 [http-nio-8080-exec-258]   [AirListSchSvImpl#airListSchSv()] : START
+      let headerRegex = /(\d{4}-\d{2}-\d{2})\s(\d{2}:\d{2}:\d{2})\s\[([^\]]+)\](.*)/;
+      let startRegex = /\[AirListSchSvImpl#airListSchSv\(\)\] : START/;
+      let requestRegex = /INFO.+airListSchSv\(req\) : 検索文字列 \[([^\]]+)\]/;
+      let endRegex = /\[AirListSchSvImpl#airListSchSv\(\)\] : END.*?Processing\s+time\s+\[([^\]]+)\]\s+ms(?:\s+lastGoodsCount\s+:\s+(\d+))?/;
+      for (let line of log.split('\n')) {
+        const headerMatch = line.match(headerRegex);
+        if (!headerMatch) continue;
+
+        const logDateStr = headerMatch[1];
+        const logTimeStr = headerMatch[2];
+        const threadId = headerMatch[3];
+        const logTimeFullStr = `${logDateStr} ${logTimeStr}`;
+        const timestamp = new Date(logTimeFullStr).getTime();
+        const logContent = headerMatch[4];
+
+        const startMatch = logContent.match(startRegex);
+        const requestMatch = logContent.match(requestRegex);
+        if (startMatch || requestMatch) {
+          if (!activeCalls.has(threadId)) {
+            activeCalls.set(threadId, {
+              startTime: timestamp,
+              startTimeRaw: logTimeFullStr,
+              threadId,
+              logs: [line],
+            });
+          } else {
+            // Already tracking this thread -> update log and maybe start time
+            const call = activeCalls.get(threadId);
+            if (!call.startTime) call.startTime = timestamp;
+            if (!call.startTimeRaw) call.startTimeRaw = logTimeFullStr;
+            call.logs.push(line);
+          }
+        }
+
+        //TODO: handle preference: start or end
+        const endMatch = line.match(endRegex);
+        if (endMatch) {
+          const procTimeMatch = endMatch[1];
+          let procTime = 0;
+          let gds = null;
+
+          // Decode airListSchSv metrics
+          const parts = procTimeMatch.split(',').map(s => s.trim());
+          procTime = parseInt(parts[parts.length - 1], 10);
+          const gdsMap = { 'IN': 'Infini', 'AP': 'Galileo (Apollo)', 'AM': 'Amadeus' };
+          gds = gdsMap[parts[0]] || parts[0];
+
+          const activeCall = activeCalls.get(threadId);
+
+          // Create event from accumulated data
+          events.push({
+            startTime: activeCall ? activeCall.startTime : null,
+            startTimeRaw: activeCall ? activeCall.startTimeRaw : null,
+            endTime: timestamp,
+            endTimeRaw: logTimeFullStr,
+            threadId: threadId,
+            processingTime: procTime,
+            lastGoodsCount: endMatch[2] ? parseInt(endMatch[2], 10) : null,
+            gds,
+            logs: (activeCall ? activeCall.logs : []).concat([line])
+          });
+          activeCalls.delete(threadId);
+        }
+      }
+      return events;
+    }
+
+    function parseLog(log) {
+      let events = parseLogEvents(log);
+
+      // Extract Travelport (Galileo[AP])
+      let travp = events.filter((sv) => sv.endTimeRaw && sv.lastGoodsCount > 0 && sv.gds && sv.gds.includes('Galileo'));
+      // Extract sv.request
+      for (let sv of travp) {
+        let reqln = null;
+        for (let ln of sv.logs) {
+          if (ln.includes('airListSchSv(req)')) {
+            let matches = ln.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[http-nio/);
+            if (matches) {
+              let tmp = matches[1];
+              let dt = new Date(sv.endTimeRaw) - new Date(tmp);
+              if (Math.abs(dt - sv.processingTime) < 1000) { reqln = ln; break }
+            }
+          }
+        }
+        if (!reqln) continue;
+        let m = reqln.match(/\[(FLT_KND=.*)\]/);
+        if (!m) { console.info('unmatched req pattern', sv); continue }
+        reqln = m[1];
+        let json = '{"' + reqln.replaceAll('=', '":"').replaceAll(',', '","') + '"}';
+        sv.request = { str: reqln, ...JSON.parse(json) };
+      }
+
+      // Calculate sv.nLegs
+      for (let sv of travp) {
+        if (!sv.request) { sv.nLegs = 0; continue }
+        sv.nLegs = Object.keys(sv.request).reduce((nLegs, key) => {
+          let m = key.match(/DEP_CD(.*)/);
+          if (m && Number(m[1]) > nLegs) return Number(m[1]); else return nLegs
+        }
+          , 0)
+      }
+
+      // Size per nLegs
+      let travpSizes = [[], [], [], [], [], [], [], [], [], [], []]; // 0..10 legs
+      for (let sv of travp) { travpSizes[sv.nLegs].push(sv); }
+      for (let i = 0; i < travpSizes.length; i++) {
+        travpSizes[i].sort((a, b) => a.lastGoodsCount - b.lastGoodsCount);
+      }
+
+      // Add to window for console debug
+      window.TravelportResultsPerLeg = travpSizes;
+      console.debug('TravelportResultsPerLeg:', travpSizes);
+      return travpSizes;
+    }
+
+    function renderData(data) {
+      container.html("");
+
+      if (!data || data.length === 0) {
+        container.append("p").text("No data found").attr("class", "no-data");
+        globalSummary.textContent = "";
+        return;
+      }
+
+      const globalCutoff = parseInt(cutoffInput.value, 10) || 3000;
+      let totalCutoffCount = 0;
+      let totalCasesCount = 0;
+
+      data.forEach((legData, index) => {
+        if (!legData || legData.length === 0) {
+          console.log(`No data found for journey with ${index} leg`);
+          return;
+        }
+
+        const count = legData.length;
+        const cutoffCount = legData.filter(d => d.lastGoodsCount >= globalCutoff).length;
+        const cutoffPct = ((cutoffCount / count) * 100).toFixed(1);
+        totalCutoffCount += cutoffCount;
+        totalCasesCount += count;
+
+        const wrapper = container.append("div").attr("class", "histogram-container");
+        const titleLine = wrapper.append("div").attr("class", "histogram-title");
+        titleLine.append("span").text(`Journey with ${index} Leg${index > 1 ? 's' : ''} (Total: ${d3.format(",")(count)})`);
+
+        if (cutoffCount > 0) {
+          titleLine.append("span")
+            .style("margin-left", "1rem")
+            .style("font-size", "0.9rem")
+            .style("color", "var(--accent-color)")
+            .text(`(${cutoffCount} cutoff cases, ${cutoffPct}%)`);
+        }
+
+        const chartArea = wrapper.append("div").attr("class", "chart-area");
+
+        // Add details view
+        const details = wrapper.append("details").attr("class", "details-container");
+        details.append("summary").text("Case Details").attr("title", "Click a bar in the histogram above to see details");
+        const detailsContent = details.append("div").attr("class", "details-content");
+
+        drawHistogram(chartArea, legData, tooltip, details, detailsContent, globalCutoff);
+        console.log(`Histogram rendered for journey with ${index} leg`);
+      });
+
+      const globalPct = totalCasesCount > 0 ? ((totalCutoffCount / totalCasesCount) * 100).toFixed(1) : 0;
+      globalSummary.textContent = `Total Cases: ${d3.format(",")(totalCasesCount)} | Cutoff: ${d3.format(",")(totalCutoffCount)} (${globalPct}%)`;
+    }
+
+    function drawHistogram(container, data, tooltip, detailsPanel, detailsContent, globalCutoff) {
+      const isMagnified = magnifiedToggle.checked;
+      const margin = { top: 20, right: 30, bottom: 50, left: 60 };
+      const width = 800 - margin.left - margin.right;
+      const height = 400 - margin.top - margin.bottom;
+
+      const svg = container.append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+      const values = data.map(d => d.lastGoodsCount);
+
+      // X scale
+      const x = d3.scaleLinear()
+        .domain([0, d3.max(values)])
+        .nice()
+        .range([0, width]);
+
+      // Y scale
+      const histogram = d3.bin()
+        .domain(x.domain())
+        .thresholds(x.ticks(10 + Math.min(values.length / 20, 100))); // Adjust number of bins
+
+      const bins = histogram(values);
+      // Map back to original objects
+      bins.forEach(bin => {
+        bin.cases = data.filter(d => d.lastGoodsCount >= bin.x0 && d.lastGoodsCount < bin.x1);
+      });
+
+      const maxCount = d3.max(bins, d => d.length);
+      const scaleFactor = 0.03; // 3%
+      const zoomThreshold = maxCount * scaleFactor;
+
+      const y = d3.scaleLinear()
+        .domain([0, maxCount])
+        .nice()
+        .range([height, 0]);
+      const yZoom = d3.scaleLinear().domain([0, 1]).range([10, height]);
+
+      // Add X axis
+      svg.append("g")
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(x))
+        .append("text")
+        .attr("class", "axis-label")
+        .attr("x", width / 2)
+        .attr("y", 40)
+        .attr("text-anchor", "middle")
+        .text("Number of Flight Options (Combos)");
+
+      // Add Y axis
+      svg.append("g")
+        .call(d3.axisLeft(y))
+        .append("text")
+        .attr("class", "axis-label")
+        .attr("transform", "rotate(-90)")
+        .attr("x", -height / 2)
+        .attr("y", -45)
+        .attr("text-anchor", "middle")
+        .text("Number of Search Cases");
+
+      // Store selection for highlighting
+      let selectedBar = null;
+
+      // Add bars
+      const barGroups = svg.selectAll(".bar-group")
+        .data(bins)
+        .enter().append("g")
+        .attr("class", "bar-group");
+
+      // Solid bars
+      barGroups.append("rect")
+        .attr("class", "bar solid")
+        .attr("x", d => x(d.x0) + 1)
+        .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+        .attr("y", d => y(d.length))
+        .attr("height", d => height - y(d.length));
+
+      // Hollow bars for tails (C <= T) if magnified is enabled
+      if (isMagnified) {
+        barGroups.filter(d => d.length > 0 && d.length <= zoomThreshold)
+          .append("rect")
+          .attr("class", "bar hollow")
+          .attr("x", d => x(d.x0) + 1)
+          .attr("width", d => Math.max(0, x(d.x1) - x(d.x0) - 1))
+          .attr("y", d => height - yZoom(d.length / zoomThreshold))
+          .attr("height", d => yZoom(d.length / zoomThreshold));
+      }
+
+      // Add cutoff line
+      svg.append("line")
+        .attr("class", "cutoff-line")
+        .attr("x1", x(globalCutoff))
+        .attr("x2", x(globalCutoff))
+        .attr("y1", 0)
+        .attr("y2", height)
+        .attr("stroke", "var(--accent-color)")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "4,4");
+
+      svg.append("text")
+        .attr("class", "cutoff-label")
+        .attr("x", x(globalCutoff) + 5)
+        .attr("y", 30) // Moved up below mean (at 15)
+        .text(`Cutoff: ${d3.format(",")(globalCutoff)}`);
+
+      // Unified event handling
+      barGroups.selectAll("rect")
+        .on("mouseover", (event, d) => {
+          tooltip.style("opacity", 1)
+            .html(`Range: ${d3.format(',')(d.x0)} - ${d3.format(',')(d.x1)}<br/>Count: ${d.length}`)
+            .style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mousemove", (event) => {
+          tooltip.style("left", (event.pageX + 10) + "px")
+            .style("top", (event.pageY - 28) + "px");
+        })
+        .on("mouseout", () => {
+          tooltip.style("opacity", 0);
+        })
+        .on("click", (event, d) => {
+          // Highlight selected bar
+          svg.selectAll("rect").classed("selected", false);
+          d3.select(event.currentTarget.parentNode).selectAll("rect").classed("selected", true);
+
+          // Render details
+          detailsPanel.attr("open", true);
+          renderCaseDetails(detailsContent, d.cases, d.x0, d.x1);
+
+          // Scroll to details if not fully visible
+          detailsPanel.node().scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+
+      // Add mean marker
+      const mean = d3.mean(values);
+      if (mean !== undefined) {
+        svg.append("line")
+          .attr("class", "mean-line")
+          .attr("x1", x(mean))
+          .attr("x2", x(mean))
+          .attr("y1", 0)
+          .attr("y2", height);
+
+        svg.append("text")
+          .attr("class", "mean-label")
+          .attr("x", x(mean) + 5)
+          .attr("y", 15)
+          .text(`Mean: ${d3.format(",.2f")(mean)}`);
+      }
+    }
+
+    function renderCaseDetails(container, cases, x0, x1) {
+      container.html("");
+      container.append("h4").text(`Top Cases in range ${x0} - ${x1} (Showing last 10)`);
+
+      if (cases.length === 0) {
+        container.append("p").text("No cases in this range.");
+        return;
+      }
+
+      // Just pick the last 10 cases
+      const displayCases = cases.slice(-10).reverse();
+      window.currentCases = displayCases; console.debug(`currentCases for ${displayCases[0].nLegs} legs from ${x0} to ${x1}:`, displayCases); // for console debug
+
+      displayCases.forEach((c, i) => {
+        const item = container.append("div").attr("class", "case-item");
+        const details = item.append("details");
+        const summary = details.append("summary").attr("class", "case-header");
+
+        const left = summary.append("div");
+        left.append("span").attr("class", "case-title").text(`Case ${cases.length - i}: ${d3.format(',')(c.lastGoodsCount)} Combos`);
+        left.append("div").attr("class", "case-meta").text(`${c.endTimeRaw} - ${d3.format(',')(c.processingTime)} ms | ${c.threadId}`);
+
+
+        summary.append("div").attr("class", "case-meta").text(`${d3.format(',')(c.processingTime)} ms`);
+
+        const content = details.append("div").attr("class", "case-content");
+
+        if (c.request) {
+          content.append("strong").text("Request Parameters:");
+          const reqWrapper = content.append("div")
+            .style("width", "100%")
+            .style("max-width", "100%")
+            .style("box-sizing", "border-box")
+            .style("overflow-x", "auto");
+          const reqPre = reqWrapper.append("pre").attr("class", "code-block wrap");
+          reqPre.text(JSON.stringify(c.request, null, 2));
+        }
+
+        content.append("strong").text("Full Logs:");
+        const logWrapper = content.append("div")
+          .style("width", "100%")
+          .style("max-width", "100%")
+          .style("box-sizing", "border-box")
+          .style("overflow-x", "auto");
+        const logPre = logWrapper.append("pre").attr("class", "code-block");
+        logPre.text(c.logs.join("\n"));
+      });
+    }
+
+    loadAndDraw();
+  </script>
+
+</body>
+
+</html>
