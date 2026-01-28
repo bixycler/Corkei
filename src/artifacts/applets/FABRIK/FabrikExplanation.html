@@ -4,13 +4,17 @@
 <head>
   <meta charset="utf-8" />
   <title>FABRIK Explantion</title>
-  <style>
+  <style>#vite-origin-src-artifacts-applets-FABRIK-FabrikExplanation-html-html-proxy-inline-css-index-0-css { --origin: "src/artifacts/applets/FABRIK/FabrikExplanation.html?html-proxy&inline-css&index=0.css"; }
+
     body {
       max-width: 800px;
       min-height: 100px;
       margin: 0 auto;
     }
   </style>
+  <script type="module" crossorigin src="../../../../assets/artifacts/applets/FABRIK/FabrikExplanation-4adKT22S.js"></script>
+  <link rel="modulepreload" crossorigin href="../../../../shared/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="../../../../shared/artifacts/applets/FABRIK/window-message-channel-CXnbUf7V.js">
 </head>
 
 <body>
@@ -25,7 +29,7 @@
 
   <h3>Basic Case: a Free Rod</h3>
 
-  <img src="assets/one-segment-free-base-shadow.svg">
+  <img src="../../../../assets/artifacts/applets/FABRIK/assets/one-segment-free-base-shadow.svg">
   <p>
     When a single-segment chain (a rod) is pulled at one end (effector) from P<sub>1</sub> to P<sub>1</sub>', the other
     end P<sub>0</sub> just follows P<sub>1</sub>' to move to P<sub>0</sub>' due to the length constraint of the segment.
@@ -34,7 +38,7 @@
 
   <h3>Backward Propagation on a Free Chain</h3>
 
-  <img src="assets/three-segments-free-base-shadow.svg">
+  <img src="../../../../assets/artifacts/applets/FABRIK/assets/three-segments-free-base-shadow.svg">
   <p>
     When a 3-segment chain is pulled at its tip from P<sub>3</sub> to P<sub>3</sub>', the third segment
     P<sub>2</sub>P<sub>3</sub>' just follows P<sub>3</sub>' like a free rod in the basic case, then the second segment
@@ -46,7 +50,7 @@
 
   <h3>Backward & Forward Propagation on a Fixed Base Chain</h3>
 
-  <img src="assets/three-segments-fixed-base-shadow.svg">
+  <img src="../../../../assets/artifacts/applets/FABRIK/assets/three-segments-fixed-base-shadow.svg">
   <p>
     A 3-segment chain with its base fixed will <b>reflects the backward propagation</b> at the base so that <i>the
       change propagates from the base toward to the tip</i>. That means from the intermediate position of the previous
@@ -57,7 +61,7 @@
 
   <h3>FABRIK: Iterative Backward–Forward Propagation until Equilibrium</h3>
 
-  <video muted autoplay src="assets/three-segments-iterative.webm" width="600" height="400" controls>
+  <video muted autoplay src="../../../../assets/artifacts/applets/FABRIK/assets/three-segments-iterative.webm" width="600" height="400" controls>
     Your browser does not support the video tag.
   </video>
   <p>
@@ -86,10 +90,6 @@
     </p>
   </details>
 
-  <script type="module">
-    import { responseHeight } from './window-message-channel.js'
-    responseHeight('FabrikExplanation.html')
-  </script>
 
 </body>
 

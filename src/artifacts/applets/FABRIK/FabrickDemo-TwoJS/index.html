@@ -4,7 +4,8 @@
 <head>
   <meta charset="utf-8" />
   <title>FABRIK Chain</title>
-  <style>
+  <style>#vite-origin-src-artifacts-applets-FABRIK-FabrickDemo-TwoJS-index-html-html-proxy-inline-css-index-0-css { --origin: "src/artifacts/applets/FABRIK/FabrickDemo-TwoJS/index.html?html-proxy&inline-css&index=0.css"; }
+
     #twoCanvas :first-child {
       margin: 0;
       background: DimGray;
@@ -24,6 +25,9 @@
       border: 0;
     }
   </style>
+  <script type="module" crossorigin src="../../../../../assets/artifacts/applets/FABRIK/FabrickDemo-TwoJS/index-DS8Primi.js"></script>
+  <link rel="modulepreload" crossorigin href="../../../../../shared/modulepreload-polyfill-B5Qt9EMX.js">
+  <link rel="modulepreload" crossorigin href="../../../../../shared/artifacts/applets/FABRIK/window-message-channel-CXnbUf7V.js">
 </head>
 
 <body>
@@ -41,7 +45,6 @@
   <label for="shadow">Shadow</label>
 
   <div id="twoCanvas"></div>
-  <script type="module" src="./FabrikDemo-TwoJS.js"></script>
 
   <label for="targetCoords">Target: </label>
   <input type="text" id="targetCoords" name="targetCoords" size="7">
@@ -72,10 +75,6 @@
     <iframe id="FabrikExplanation" src="../FabrikExplanation.html" style="border:0;" width="100%"
       height="100%"></iframe>
   </details>
-  <script type="module">
-    import { syncHeight } from '../window-message-channel.js'
-    syncHeight(Explanation, FabrikExplanation);
-  </script>
 
 </body>
 
