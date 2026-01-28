@@ -81,14 +81,12 @@ extSelect.addEventListener('change', () => {
       option.textContent = ext.name;
       extSelect.appendChild(option);
     });
-    // Select the first one by default if user hasn't chosen? 
-    // User plan says: "Default to the first extension if available".
-    // But let's check if "none" is first. The HTML has "none" hardcoded.
-    // So we just appended. To select first extension:
+    // Select the first one loaded (not "none") by default if user hasn't chosen? 
     if (extSelect.options.length > 1) {
       extSelect.selectedIndex = 1; // Select first added extension
     }
   }
+  loadDefaultLog();
 })();
 
 document.getElementById('reset-zoom').addEventListener('click', () => {
@@ -98,6 +96,16 @@ document.getElementById('reset-zoom').addEventListener('click', () => {
 });
 const statusDiv = document.getElementById('status');
 const chartContainer = document.getElementById('chart-container');
+
+async function loadDefaultLog() {
+  const response = await fetch('test.log');
+  if (!response.ok) {
+    console.log('No default log found. Waiting for file upload...');
+    return;
+  }
+  const text = await response.text();
+  processLog('test.log (default)', text);
+}
 
 async function handleFileUpload(event) {
   const file = event.target.files[0];
@@ -115,49 +123,52 @@ async function handleFileUpload(event) {
   reader.onload = async function (e) {
     const text = e.target.result;
     statusDiv.textContent = 'Parsing...';
-
-    try {
-      // Use cleanup to clear memory if previous run existed
-      if (currentData) {
-        currentData = null;
-      }
-
-      // Yield to UI 
-      await new Promise(r => setTimeout(r, 10));
-
-      currentData = await processGCLog(text);
-
-      // Detect and populate timezone selector
-      const tzSelect = document.getElementById('timezone-select');
-      const logTimezone = currentData.detectedTimezone;
-
-      // Clear and repopulate options
-      tzSelect.innerHTML = '';
-
-      // Add local timezone option
-      const localOption = document.createElement('option');
-      localOption.value = 'local';
-      localOption.textContent = 'Local';
-      tzSelect.appendChild(localOption);
-
-      // Add log timezone option if detected
-      if (logTimezone) {
-        const logOption = document.createElement('option');
-        logOption.value = logTimezone;
-        logOption.textContent = `Log (UTC${logTimezone})`;
-        logOption.selected = true; // Default to log timezone
-        tzSelect.appendChild(logOption);
-      }
-
-      statusDiv.textContent = `${file.name}: ${currentData.length} GC events parsed${currentData.truncated ? ' (truncated)' : ''}`;
-      currentZoomTransform = null; // Reset zoom for new log
-      renderChart(currentData);
-    } catch (err) {
-      console.error(err);
-      statusDiv.textContent = 'Error parsing file: ' + err.message;
-    }
+    processLog(file.name, text);
   };
   reader.readAsText(file);
+}
+
+async function processLog(logName = '(default)', text = null) {
+  try {
+    // Use cleanup to clear memory if previous run existed
+    if (currentData) {
+      currentData = null;
+    }
+
+    // Yield to UI 
+    await new Promise(r => setTimeout(r, 10));
+
+    currentData = await processGCLog(text);
+
+    // Detect and populate timezone selector
+    const tzSelect = document.getElementById('timezone-select');
+    const logTimezone = currentData.detectedTimezone;
+
+    // Clear and repopulate options
+    tzSelect.innerHTML = '';
+
+    // Add local timezone option
+    const localOption = document.createElement('option');
+    localOption.value = 'local';
+    localOption.textContent = 'Local';
+    tzSelect.appendChild(localOption);
+
+    // Add log timezone option if detected
+    if (logTimezone) {
+      const logOption = document.createElement('option');
+      logOption.value = logTimezone;
+      logOption.textContent = `Log (UTC${logTimezone})`;
+      logOption.selected = true; // Default to log timezone
+      tzSelect.appendChild(logOption);
+    }
+
+    statusDiv.textContent = `${logName}: ${currentData.length} GC events parsed${currentData.truncated ? ' (truncated)' : ''}`;
+    currentZoomTransform = null; // Reset zoom for new log
+    renderChart(currentData);
+  } catch (err) {
+    console.error(err);
+    statusDiv.textContent = 'Error parsing file: ' + err.message;
+  }
 }
 
 async function processGCLog(content) {
