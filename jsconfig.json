@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "target": "ES2023",
     "allowJs": true, // Allow JavaScript files in the project
     "checkJs": true, // Enable type checking in .js files
     //"target": "es2020", // Specify JavaScript target version

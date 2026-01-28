@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Travelport JSON API Search Viewer</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 20px;
+      /* For scroll to last product: leave a full page space */
+      margin-bottom: 100vh;
+      background-color: #f5f7fa;
+      color: #333;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    h1 {
+      margin-bottom: 20px;
+    }
+
+    #controls {
+      margin-bottom: 20px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 6px;
+      border: 1px solid #e1e4e8;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    #controls label {
+      font-weight: bold;
+    }
+
+    #gui-root {
+      overflow-x: auto;
+    }
+
+    /* Messages UI */
+    #messages-root {
+      margin: 10px 0;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      background: #fff;
+      display: none;
+    }
+
+    .msg-group {
+      border-bottom: 1px solid #eee;
+    }
+
+    .msg-group:last-child {
+      border-bottom: none;
+    }
+
+    .msg-header {
+      cursor: pointer;
+      padding: 8px 15px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8f9fa;
+    }
+
+    .msg-content {
+      padding: 5px 15px 10px 15px;
+      font-family: monospace;
+      font-size: 0.9em;
+      white-space: pre-wrap;
+    }
+
+    .msg-content.folded {
+      display: none;
+    }
+
+    .msg-info .msg-header {
+      color: #0366d6;
+    }
+
+    .msg-warn .msg-header {
+      color: #f2994a;
+    }
+
+    .msg-error .msg-header {
+      color: #d73a49;
+    }
+
+    /* Summary Styles */
+    #summary-root {
+      margin: 15px 0;
+      background: #fff;
+      border: 1px solid #e1e4e8;
+      border-radius: 6px;
+      padding: 15px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    .summary-info {
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .summary-title {
+      font-weight: bold;
+      font-size: 1.1em;
+      margin-bottom: 8px;
+      display: block;
+      color: #24292e;
+    }
+
+    .price-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .price-chip {
+      background: #e6ffed;
+      border: 1px solid #34d058;
+      color: #22863a;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .price-chip:hover {
+      background: #dcffe4;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      transform: translateY(-1px);
+    }
+
+
+    .group {
+      background: #fff;
+      border: 2px solid #e1e4e8;
+      margin: 0 0 15px;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .group-header {
+      cursor: pointer;
+      background: #f8f9fa;
+      padding: 10px 15px;
+      font-weight: bold;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #e1e4e8;
+    }
+
+    .group-header:hover {
+      background: #f1f3f5;
+    }
+
+    .group-offer>.group-header {
+      background: #e3f2fd;
+      border-bottom: 1px solid #bbdefb;
+    }
+
+    .group-offer>.group-header:hover {
+      background: #e1f5fe;
+    }
+
+    .group-header.folded {
+      border-bottom: none;
+    }
+
+    .group-content {
+      display: grid;
+      grid-template-rows: 1fr;
+      transition: grid-template-rows 0.1s ease-out;
+      overflow: hidden;
+    }
+
+    .group-content.folded {
+      display: grid;
+      grid-template-rows: 0fr;
+    }
+
+    .group-transition-wrapper {
+      min-height: 0;
+      padding: 1px;
+    }
+
+    table {
+      width: auto;
+      border-collapse: collapse;
+      background: #fff;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #e1e4e8;
+      border-left: none;
+      border-right: none;
+      padding: 20px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f8f9fa;
+      color: #586069;
+      font-size: 1.1em;
+      letter-spacing: 0.05em;
+    }
+
+    tr:nth-child(even) {
+      background-color: #fafbfc;
+    }
+
+    tr:hover {
+      background-color: #f6f8fa;
+    }
+
+    .price-highlight {
+      color: #28a745;
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+
+    .cc-code {
+      font-family: monospace;
+      color: #6a737d;
+      font-size: 1em;
+      font-weight: bold;
+    }
+
+    .combo-count {
+      color: #6f42c1;
+      font-size: 1.2em;
+      margin-left: 8px;
+      font-weight: normal;
+    }
+
+    .product-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .product-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 0.85em;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .product-item:last-child {
+      border-bottom: none;
+    }
+
+    .product-id {
+      color: #24292e;
+      font-weight: bold;
+      font-size: 1.05em;
+    }
+
+    .route-info {
+      color: #586069;
+      font-weight: normal;
+    }
+
+    .segments {
+      color: #666;
+      display: block;
+      margin-top: 2px;
+      font-size: 0.8em;
+    }
+
+    .transits {
+      color: #d73a49;
+      font-style: italic;
+      font-size: 0.8em;
+      display: block;
+    }
+
+    .brand-tag {
+      background: #e1ecf4;
+      color: #39739d;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.75em;
+      display: inline-block;
+      margin-top: 4px;
+      border: 1px solid #addaf4;
+    }
+
+    .arrow::after {
+      content: ' ▼';
+      font-size: 0.8em;
+      color: #6a737d;
+      transition: transform 0.3s;
+      display: inline-block;
+    }
+
+    .folded .arrow::after {
+      transform: rotate(-90deg);
+    }
+
+    .group-header-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .back-to-top {
+      color: #0366d6;
+      text-decoration: none;
+      font-size: 1.1em;
+      font-weight: normal;
+      padding: 2px 5px;
+      border-radius: 4px;
+      transition: background 0.2s;
+    }
+
+    .back-to-top:hover {
+      background: rgba(3, 102, 214, 0.1);
+    }
+
+    #file-status {
+      margin-bottom: 10px;
+      font-size: 1.1em;
+      color: #586069;
+      font-style: italic;
+    }
+
+    .error-box {
+      color: #d73a49;
+      padding: 20px;
+      background: #ffeef0;
+      border: 1px solid #f97583;
+      border-radius: 6px;
+    }
+
+    /* Overview Visualization Styles */
+
+    .overview-row {
+      position: relative;
+      background: #fff;
+    }
+
+    .overview-lines-svg {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    .leg-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      height: 100%;
+      padding: 5px;
+      box-sizing: border-box;
+      position: relative;
+    }
+
+    .offer-box {
+      border: 3px ridge #aaa;
+      padding: 0;
+      background: #fdfdfd;
+      width: 20px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .option-box {
+      border-bottom: 2px solid black;
+      padding: 0;
+      padding-bottom: 1px;
+      background: #fafafa;
+      width: 20px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .product-box {
+      border: 1px solid #444;
+      /* Collapsed border effect: margin: -border-width; */
+      margin: -1px;
+      padding: 0;
+      background: #fff;
+      width: 20px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 0;
+      min-height: 3px;
+      position: relative;
+    }
+
+    .cc-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #6f42c1;
+      display: inline-block;
+      position: relative;
+    }
+
+    .cc-dot:hover {
+      transform: scale(1.5);
+      z-index: 20;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Travelport JSON API Search Viewer</h1>
+  <div id="file-status"></div>
+  <div id="controls">
+    <label for="json-file">Load JSON Response:</label>
+    <input type="file" id="json-file" accept=".json">
+  </div>
+
+  <div id="messages-root"></div>
+  <div id="gui-root"></div>
+
+  <script type="module" src="./index.js"></script>
+</body>
+
+</html>
