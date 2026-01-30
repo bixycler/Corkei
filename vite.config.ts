@@ -84,6 +84,13 @@ export default defineConfig(({ mode: _mode }) => {
     ],
     server: {
       hmr: HMR,
+      proxy: {
+        '/gemini-api': {
+          target: 'https://generativelanguage.googleapis.com',
+          changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/gemini-api/, ''),
+        },
+      },
     },
     build: {
       rollupOptions: {
