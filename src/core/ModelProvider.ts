@@ -6,7 +6,7 @@
  * - Local models (Ollama, etc.) - future extension
  */
 
-import type { ModelInput, ModelResult } from './types';
+import type { ModelInput, ModelResult, ModelStreamChunk } from './types';
 
 /**
  * Abstract base class for model providers.
@@ -25,7 +25,7 @@ export abstract class ModelProvider {
    * Optional - not all providers support streaming.
    * 
    * @param input - The model input
-   * @yields Text chunks as they are generated
+   * @yields Events including text chunks, interaction IDs, and usage
    */
-  generateStream?(input: ModelInput): AsyncIterable<string>;
+  generateStream?(input: ModelInput): AsyncIterable<ModelStreamChunk>;
 }

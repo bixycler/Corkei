@@ -83,6 +83,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
   const [error, setError] = createSignal<string | null>(null);
   const [selectedModel, setSelectedModel] = createSignal(DEFAULT_MODEL);
   const [thinkingLevel, setThinkingLevel] = createSignal<any>('minimal');
+  const [streamingEnabled, setStreamingEnabled] = createSignal(true);
 
   // Agent instance (initialized on mount or when model changes)
   let agent: MainAgent | null = null;
@@ -102,7 +103,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
           rootNodeId: rootNodeId(),
           model: selectedModel(),
           generationConfig: {
-            temperature: 0.7,
+            temperature: 1.0,
             thinkingLevel: thinkingLevel(),
           },
         },
@@ -135,10 +136,10 @@ const Corkei: Component<CorkeiProps> = (props) => {
 
     // Ensure thinkingLevel is valid for the new model
     const supportedLevels = SUPPORTED_MODELS[model]?.thinkingLevels || [];
-    if (supportedLevels.length > 0 && !supportedLevels.includes(thinkingLevel())) {
-      setThinkingLevel(supportedLevels[0]);
-    } else {
+    if (!supportedLevels.length) {
       setThinkingLevel(null);
+    } else if (!supportedLevels.includes(thinkingLevel())) {
+      setThinkingLevel(supportedLevels[0]);
     }
 
     initAgent();
@@ -179,32 +180,56 @@ const Corkei: Component<CorkeiProps> = (props) => {
     setIsLoading(true);
     setError(null);
 
-    try {
-      const result = await agent.processTurn(message);
+    if (streamingEnabled()) {
+      try {
+        const stream = agent.processTurnStream(message);
 
-      // Update turns from conversation history
-      const allTurns = conversationHistory.getRecentTurns(100);
-      setTurns(allTurns);
+        // Update UI with the user turn that was just added to history
+        setTurns(conversationHistory.getRecentTurns(100));
 
-      // Trigger graph re-render by creating a new map reference
-      setGraph(new Map(graph()));
+        let modelContent = '';
 
-    } catch (err) {
-      console.error('Error processing turn:', err);
-      setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        for await (const chunk of stream) {
+          modelContent += chunk;
 
-      // Still show the user's message
-      const userTurn: Turn = {
-        id: `turn_${Date.now()}` as any,
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-        previousTurnId: null,
-        relatedNodes: [],
-      };
-      setTurns([...turns(), userTurn]);
-    } finally {
-      setIsLoading(false);
+          // Show partial content in the UI
+          const historyTurns = conversationHistory.getRecentTurns(100);
+          setTurns([
+            ...historyTurns,
+            {
+              id: 'streaming' as any,
+              role: 'model',
+              content: modelContent,
+              timestamp: new Date(),
+              previousTurnId: historyTurns[historyTurns.length - 1]?.id || null,
+              relatedNodes: [],
+            }
+          ]);
+        }
+
+        // Final update - history now has the real model turn with parsed links
+        setTurns(conversationHistory.getRecentTurns(100));
+        setGraph(new Map(graph()));
+
+      } catch (err) {
+        console.error('Error processing turn stream:', err);
+        setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setTurns(conversationHistory.getRecentTurns(100));
+      } finally {
+        setIsLoading(false);
+      }
+    } else {
+      try {
+        await agent.processTurn(message);
+        setTurns(conversationHistory.getRecentTurns(100));
+        setGraph(new Map(graph()));
+      } catch (err) {
+        console.error('Error processing turn:', err);
+        setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        setTurns(conversationHistory.getRecentTurns(100));
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -229,6 +254,8 @@ const Corkei: Component<CorkeiProps> = (props) => {
         onModelChange={handleModelChange}
         thinkingLevel={thinkingLevel()}
         onThinkingLevelChange={handleThinkingLevelChange}
+        streamingEnabled={streamingEnabled()}
+        onStreamingToggle={setStreamingEnabled}
       />
 
       {/* Divider */}

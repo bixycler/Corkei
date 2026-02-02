@@ -13,6 +13,7 @@ import type {
   LinkUpdate,
   ModelProvider,
   AgentConfig,
+  ModelStreamChunk,
 } from './types';
 import { generateTextualContext } from './ContextGraph';
 import { ConversationHistory } from './Conversation';
@@ -114,6 +115,67 @@ export abstract class Agent {
       linkUpdates: parsed.linkUpdates,
       turn: modelTurn,
     };
+  }
+
+  /**
+   * Processes a user message with streaming.
+   * 
+   * @param userMessage - The user message
+   * @yields Text chunks as they arrive
+   */
+  async *processTurnStream(userMessage: string): AsyncIterable<string> {
+    // 1. Record user turn
+    const userTurn = this.history.addTurn('user', userMessage);
+
+    // 2. Build context
+    const systemInstruction = this.getSystemInstruction();
+    const recentTurns = this.history.getRecentTurnsForModel(this.recentTurnsCount);
+
+    // 3. Call model stream (fallback to generate if not supported)
+    if (!this.modelProvider.generateStream) {
+      console.warn('ModelProvider does not support streaming, falling back to non-streaming');
+      const result = await this.processTurn(userMessage);
+      yield result.response || '';
+      return;
+    }
+
+    const stream = this.modelProvider.generateStream({
+      systemInstruction,
+      input: recentTurns,
+      previousInteractionId: this.history.getLastInteractionId() || undefined,
+      generationConfig: this.config.generationConfig,
+    });
+
+    let fullText = '';
+    let interactionId = '';
+    let usage: any;
+
+    for await (const chunk of stream) {
+      if (chunk.type === 'text') {
+        fullText += chunk.text;
+        yield chunk.text;
+      } else if (chunk.type === 'interaction_id') {
+        interactionId = chunk.interactionId;
+      } else if (chunk.type === 'usage') {
+        usage = chunk.usage;
+      }
+    }
+
+    // 4. Parse the FINAL response
+    const parsed = this.parseResponse(fullText);
+
+    // 5. Apply updates to graph
+    this.applyNodeUpdates(parsed.nodeUpdates);
+
+    // 6. Record model turn with links
+    this.history.addTurn(
+      'model',
+      parsed.response || '',
+      parsed.linkUpdates.map(u => u.nodeId),
+      interactionId || this.history.getLastInteractionId() || undefined
+    );
+
+    // Note: Usage is currently not saved in Turn history but could be
   }
 
   /**

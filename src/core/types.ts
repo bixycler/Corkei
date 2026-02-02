@@ -235,6 +235,14 @@ export interface ModelResult {
 }
 
 /**
+ * A chunk of a model streaming response.
+ */
+export type ModelStreamChunk =
+  | { type: 'text'; text: string }
+  | { type: 'interaction_id'; interactionId: string }
+  | { type: 'usage'; usage: ModelResult['usage'] };
+
+/**
  * Abstract interface for AI model providers.
  * Designed for extension to local models (Ollama, etc.).
  */
@@ -243,5 +251,5 @@ export interface ModelProvider {
   generate(input: ModelInput): Promise<ModelResult>;
 
   /** Generate a streaming response */
-  generateStream?(input: ModelInput): AsyncIterable<string>;
+  generateStream?(input: ModelInput): AsyncIterable<ModelStreamChunk>;
 }

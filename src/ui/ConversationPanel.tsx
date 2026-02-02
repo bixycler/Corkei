@@ -32,6 +32,12 @@ export interface ConversationPanelProps {
 
   /** Callback when thinking level is changed */
   onThinkingLevelChange: (level: GenerationConfig['thinkingLevel']) => void;
+
+  /** Whether streaming is enabled */
+  streamingEnabled: boolean;
+
+  /** Callback to toggle streaming */
+  onStreamingToggle: (enabled: boolean) => void;
 }
 
 /**
@@ -100,6 +106,16 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
               </For>
             </select>
           </Show>
+
+          <label class="streaming-toggle" title="Toggle Real-time Streaming">
+            <input
+              type="checkbox"
+              checked={props.streamingEnabled}
+              onChange={(e) => props.onStreamingToggle(e.currentTarget.checked)}
+              disabled={props.isLoading}
+            />
+            <span>Stream</span>
+          </label>
         </div>
       </div>
 
@@ -107,7 +123,7 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
       <div class="message-list">
         <For each={props.turns}>
           {(turn) => (
-            <div class={`message ${turn.role}`}>
+            <div class={`message ${turn.role} ${turn.id === 'streaming' ? 'streaming' : ''}`}>
               <div class="message-role">
                 {turn.role === 'user' ? 'You' : 'Corkei'}
               </div>

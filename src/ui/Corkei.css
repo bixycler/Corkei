@@ -66,6 +66,7 @@
 
 .model-selection {
   display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -79,6 +80,26 @@
   outline: none;
   cursor: pointer;
   transition: border-color 0.2s;
+}
+
+.streaming-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px;
+}
+
+.streaming-toggle input {
+  margin: 0;
+  cursor: pointer;
+}
+
+.streaming-toggle:hover {
+  color: #6cf;
 }
 
 .model-selection select:hover:not(:disabled) {
@@ -105,11 +126,14 @@
 }
 
 /* Message bubbles */
+.message:not(.streaming) {
+  animation: fadeIn 0.2s ease-out;
+}
+
 .message {
   max-width: 85%;
   padding: 12px 16px;
   border-radius: 12px;
-  animation: fadeIn 0.2s ease-out;
 }
 
 @keyframes fadeIn {

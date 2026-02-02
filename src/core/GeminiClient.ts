@@ -13,7 +13,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import type { ModelInput, ModelResult, GenerationConfig } from './types';
+import type { ModelInput, ModelResult, GenerationConfig, ModelStreamChunk } from './types';
 import { ModelProvider } from './ModelProvider';
 
 /**
@@ -50,7 +50,7 @@ export const SUPPORTED_MODELS: Record<string, { name: string; thinkingLevels: st
 /**
  * Default model for Gemini interactions.
  */
-export const DEFAULT_MODEL = 'gemini-3-flash-preview';
+export const DEFAULT_MODEL = 'gemini-2.5-flash'; // 'gemini-3-flash-preview' has too long TTFT > 10s!
 
 /**
  * Gets the API key from various sources.
@@ -235,13 +235,14 @@ export class GeminiClient extends ModelProvider {
       }
     }
 
+    const usage = interaction.usage;
     return {
       text,
-      interactionId: interaction.id || '',
-      usage: interaction.usage ? {
-        inputTokens: interaction.usage.total_input_tokens || 0,
-        outputTokens: interaction.usage.total_output_tokens || 0,
-        totalTokens: interaction.usage.total_tokens || 0,
+      interactionId: interaction.id || (interaction as any).interaction_id || '',
+      usage: usage ? {
+        inputTokens: (usage as any).total_input_tokens ?? (usage as any).totalInputTokens ?? 0,
+        outputTokens: (usage as any).total_output_tokens ?? (usage as any).totalOutputTokens ?? 0,
+        totalTokens: (usage as any).total_tokens ?? (usage as any).totalTokens ?? 0,
       } : undefined,
     };
   }
@@ -249,7 +250,7 @@ export class GeminiClient extends ModelProvider {
   /**
    * Generate a streaming response using the Gemini Interactions API.
    */
-  async *generateStream(input: ModelInput): AsyncIterable<string> {
+  async *generateStream(input: ModelInput): AsyncIterable<ModelStreamChunk> {
     const request = this.prepareRequest(input, true);
 
     // Make the streaming API call
@@ -259,10 +260,30 @@ export class GeminiClient extends ModelProvider {
     // Yield text chunks as they arrive
     for await (const chunk of stream as any) {
       console.debug('[GeminiClient.generateStream()] API chunk:', chunk);
-      if (chunk.eventType === 'content.delta') {
+
+      const eventType = chunk.event_type || chunk.eventType;
+
+      if (eventType === 'interaction.start' && chunk.interaction?.id) {
+        yield { type: 'interaction_id', interactionId: chunk.interaction.id };
+      }
+
+      if (eventType === 'content.delta') {
         if (chunk.delta?.type === 'text' && chunk.delta?.text) {
-          yield chunk.delta.text;
+          yield { type: 'text', text: chunk.delta.text };
         }
+      }
+
+      // Check for usage info in the final interaction state if possible
+      if (eventType === 'interaction.state' && chunk.interaction?.usage) {
+        const usage = chunk.interaction.usage;
+        yield {
+          type: 'usage',
+          usage: {
+            inputTokens: (usage as any).total_input_tokens ?? (usage as any).totalInputTokens ?? 0,
+            outputTokens: (usage as any).total_output_tokens ?? (usage as any).totalOutputTokens ?? 0,
+            totalTokens: (usage as any).total_tokens ?? (usage as any).totalTokens ?? 0,
+          }
+        };
       }
     }
   }
