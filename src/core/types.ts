@@ -149,7 +149,7 @@ export interface AgentConfig {
 export interface GenerationConfig {
   temperature?: number;
   maxOutputTokens?: number;
-  thinkingLevel?: 'minimal' | 'low' | 'medium' | 'high';
+  thinkingLevel?: null | 'minimal' | 'low' | 'medium' | 'high';
 }
 
 /**

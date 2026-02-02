@@ -64,6 +64,11 @@
   color: #6cf;
 }
 
+.model-selection {
+  display: flex;
+  gap: 8px;
+}
+
 .model-selection select {
   background: #181818;
   color: #e0e0e0;

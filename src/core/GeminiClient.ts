@@ -33,18 +33,18 @@ export interface GeminiClientConfig {
 /**
  * Supported models for Gemini and Gemma.
  */
-export const SUPPORTED_MODELS = {
-  //'gemma-3-270m-it': 'Gemma 3 270M', // Unsupported by Interactions API
-  //'gemma-3-1b-it': 'Gemma 3 1B', // Too small for agentic workflows
-  //'gemma-3-2b-it': 'Gemma 3 2B', // Unsupported by Interactions API
-  'gemma-3-4b-it': 'Gemma 3 4B',
-  'gemma-3-12b-it': 'Gemma 3 12B',
-  'gemma-3-27b-it': 'Gemma 3 27B',
-  //'gemini-2.5-flash-lite': 'Gemini 2.5 Flash Lite', // Conflicting settings: thinkingLevel = ['low'=256, 'high'=?] but 256 < min thinkingBudget = 512
-  'gemini-2.5-flash': 'Gemini 2.5 Flash', // thinkingLevel = ['minimal', 'low', 'medium', 'high']
-  'gemini-2.5-pro': 'Gemini 2.5 Pro',  // thinkingLevel = ['low', 'high']
-  'gemini-3-flash-preview': 'Gemini 3 Flash', // thinkingLevel = ['minimal', 'low', 'medium', 'high']
-  'gemini-3-pro-preview': 'Gemini 3 Pro', // thinkingLevel = ['low', 'high']
+export const SUPPORTED_MODELS: Record<string, { name: string; thinkingLevels: string[] }> = {
+  //'gemma-3-270m-it': { name: 'Gemma 3 270M', thinkingLevels: [] }, // Unsupported by Interactions API
+  //'gemma-3-1b-it': { name: 'Gemma 3 1B', thinkingLevels: [] }, // Too small for agentic workflows
+  //'gemma-3-2b-it': { name: 'Gemma 3 2B', thinkingLevels: [] }, // Unsupported by Interactions API
+  'gemma-3-4b-it': { name: 'Gemma 3 4B', thinkingLevels: [] },
+  'gemma-3-12b-it': { name: 'Gemma 3 12B', thinkingLevels: [] },
+  'gemma-3-27b-it': { name: 'Gemma 3 27B', thinkingLevels: [] },
+  //'gemini-2.5-flash-lite': { name: 'Gemini 2.5 Flash Lite', thinkingLevels: ['low', 'high'] }, // Conflicting settings: thinkingLevel = ['low'=256, 'high'=?] but 256 < min thinkingBudget = 512
+  'gemini-2.5-flash': { name: 'Gemini 2.5 Flash', thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
+  'gemini-2.5-pro': { name: 'Gemini 2.5 Pro', thinkingLevels: ['low', 'high'] },
+  'gemini-3-flash-preview': { name: 'Gemini 3 Flash', thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
+  'gemini-3-pro-preview': { name: 'Gemini 3 Pro', thinkingLevels: ['low', 'high'] },
 };
 
 /**
@@ -175,7 +175,7 @@ export class GeminiClient extends ModelProvider {
         temperature: generationConfig.temperature,
         maxOutputTokens: generationConfig.maxOutputTokens,
       };
-      if (!this.isGemma()) {
+      if (generationConfig.thinkingLevel) {
         request.generationConfig.thinkingLevel = generationConfig.thinkingLevel;
         request.generationConfig.thinkingSummaries = 'auto';
       }

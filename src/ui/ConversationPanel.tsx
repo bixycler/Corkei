@@ -5,8 +5,8 @@
  * and provides an input field for new messages.
  */
 
-import { type Component, For, createSignal, createEffect } from 'solid-js';
-import type { Turn } from '../core/types';
+import { type Component, For, createSignal, createEffect, Show } from 'solid-js';
+import type { Turn, GenerationConfig } from '../core/types';
 import { SUPPORTED_MODELS } from '../core/GeminiClient';
 
 // Styles are in Corkei.css
@@ -26,6 +26,12 @@ export interface ConversationPanelProps {
 
   /** Callback when model is changed */
   onModelChange: (model: string) => void;
+
+  /** Currently selected thinking level */
+  thinkingLevel: GenerationConfig['thinkingLevel'];
+
+  /** Callback when thinking level is changed */
+  onThinkingLevelChange: (level: GenerationConfig['thinkingLevel']) => void;
 }
 
 /**
@@ -70,13 +76,30 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
             value={props.selectedModel}
             onChange={(e) => props.onModelChange(e.currentTarget.value)}
             disabled={props.isLoading}
+            title="Select AI Model"
           >
             <For each={Object.entries(SUPPORTED_MODELS)}>
               {(model) => (
-                <option value={model[0]}>{model[1]}</option>
+                <option value={model[0]}>{model[1].name}</option>
               )}
             </For>
           </select>
+
+          <Show when={(SUPPORTED_MODELS[props.selectedModel]?.thinkingLevels?.length ?? 0) > 0}>
+            <select
+              value={props.thinkingLevel}
+              onChange={(e) => props.onThinkingLevelChange(e.currentTarget.value as any)}
+              disabled={props.isLoading}
+              title="Select Thinking Level"
+              class="thinking-level-select"
+            >
+              <For each={SUPPORTED_MODELS[props.selectedModel].thinkingLevels}>
+                {(level) => (
+                  <option value={level}>{level}</option>
+                )}
+              </For>
+            </select>
+          </Show>
         </div>
       </div>
 

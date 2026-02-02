@@ -13,7 +13,7 @@ import type { ContextGraph, NodeId, Turn } from '../core/types';
 import { nodeId } from '../core/types';
 import { createContextGraph, createNode, addNode, addChildToNode } from '../core/ContextGraph';
 import { ConversationHistory } from '../core/Conversation';
-import { GeminiClient, DEFAULT_MODEL } from '../core/GeminiClient';
+import { GeminiClient, DEFAULT_MODEL, SUPPORTED_MODELS } from '../core/GeminiClient';
 import { MainAgent } from '../core/MainAgent';
 
 // UI components
@@ -82,6 +82,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [selectedModel, setSelectedModel] = createSignal(DEFAULT_MODEL);
+  const [thinkingLevel, setThinkingLevel] = createSignal<any>('minimal');
 
   // Agent instance (initialized on mount or when model changes)
   let agent: MainAgent | null = null;
@@ -102,7 +103,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
           model: selectedModel(),
           generationConfig: {
             temperature: 0.7,
-            thinkingLevel: 'minimal',
+            thinkingLevel: thinkingLevel(),
           },
         },
         graph(),
@@ -131,6 +132,21 @@ const Corkei: Component<CorkeiProps> = (props) => {
   // Handle model change
   const handleModelChange = (model: string) => {
     setSelectedModel(model);
+
+    // Ensure thinkingLevel is valid for the new model
+    const supportedLevels = SUPPORTED_MODELS[model]?.thinkingLevels || [];
+    if (supportedLevels.length > 0 && !supportedLevels.includes(thinkingLevel())) {
+      setThinkingLevel(supportedLevels[0]);
+    } else {
+      setThinkingLevel(null);
+    }
+
+    initAgent();
+  };
+
+  // Handle thinking level change
+  const handleThinkingLevelChange = (level: any) => {
+    setThinkingLevel(level);
     initAgent();
   };
 
@@ -211,6 +227,8 @@ const Corkei: Component<CorkeiProps> = (props) => {
         onSendMessage={handleSendMessage}
         selectedModel={selectedModel()}
         onModelChange={handleModelChange}
+        thinkingLevel={thinkingLevel()}
+        onThinkingLevelChange={handleThinkingLevelChange}
       />
 
       {/* Divider */}
