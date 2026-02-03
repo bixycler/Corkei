@@ -117,9 +117,6 @@ export interface Turn {
    * This mapping is done by the agent as part of its output.
    */
   relatedNodes: NodeId[];
-
-  /** ID of the Gemini interaction for stateful conversation */
-  interactionId?: string;
 }
 
 // =============================================================================
@@ -201,9 +198,6 @@ export interface ModelInput {
   /** Current user input or conversation turns */
   input: ModelTurn[];
 
-  /** Previous interaction ID for stateful conversation */
-  previousInteractionId?: string;
-
   /** Generation configuration */
   generationConfig?: GenerationConfig;
 }
@@ -223,9 +217,6 @@ export interface ModelResult {
   /** Generated text output */
   text: string;
 
-  /** Interaction ID for stateful conversation chaining */
-  interactionId: string;
-
   /** Token usage statistics */
   usage?: {
     inputTokens: number;
@@ -239,7 +230,6 @@ export interface ModelResult {
  */
 export type ModelStreamChunk =
   | { type: 'text'; text: string }
-  | { type: 'interaction_id'; interactionId: string }
   | { type: 'usage'; usage: ModelResult['usage'] };
 
 /**

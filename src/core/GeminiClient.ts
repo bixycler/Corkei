@@ -1,10 +1,9 @@
 /**
- * GeminiClient - Wrapper for the Gemini Interactions API.
+ * GeminiClient - Wrapper for the Gemini generateContent API.
  * 
- * Uses the @google/genai package with the Interactions API for:
+ * Uses the @google/genai package for:
  * - systemInstruction: Context tree text (root node)
- * - input: Conversation history / current turn
- * - previousInteractionId: Stateful multi-turn conversations
+ * - contents: Full conversation history (stateless)
  * 
  * API Key loading priority:
  * 1. Runtime configuration (GeminiClientConfig)
@@ -54,7 +53,6 @@ export const DEFAULT_MODEL = 'gemini-2.5-flash'; // 'gemini-3-flash-preview' has
 
 /**
  * Gets the API key from various sources.
- * Priority: config > env var > Vite env
  */
 function getApiKey(config?: GeminiClientConfig): string {
   // 1. Runtime config
@@ -102,7 +100,7 @@ function getApiKey(config?: GeminiClientConfig): string {
 }
 
 /**
- * Gemini Interactions API client implementation.
+ * Gemini Client implementation using generateContent API.
  */
 export class GeminiClient extends ModelProvider {
   private client: GoogleGenAI;
@@ -133,31 +131,14 @@ export class GeminiClient extends ModelProvider {
     console.log(`GeminiClient: Initialized with model ${this.model}`);
   }
 
-  /**
-   * Returns true if the current model is a Gemma model.
-   */
-  private isGemma(): boolean {
-    return this.model.startsWith('gemma');
-  }
+  private isGemma(): boolean { return this.model.startsWith('gemma'); }
+  private isGemini3(): boolean { return this.model.includes('gemini-3'); }
+  private isGemini2(): boolean { return this.model.includes('gemini-2'); }
 
   /**
-   * Returns true if the current model is a Gemini 3 model.
+   * Prepares the generateContent request object.
    */
-  private isGemini3(): boolean {
-    return this.model.includes('gemini-3');
-  }
-
-  /**
-   * Returns true if the current model is a Gemini 2 model.
-   */
-  private isGemini2(): boolean {
-    return this.model.includes('gemini-2');
-  }
-
-  /**
-   * Prepares the interaction request object.
-   */
-  private prepareRequest(input: ModelInput, isStream: boolean = false): any {
+  private prepareRequest(input: ModelInput): any {
     const generationConfig = {
       ...this.defaultConfig,
       ...input.generationConfig,
@@ -165,123 +146,124 @@ export class GeminiClient extends ModelProvider {
 
     const request: any = {
       model: this.model,
-      input: input.input.slice(-1),
-      stream: isStream,
-    };
-
-    // Add generation config if present
-    if (Object.keys(generationConfig).length > 0) {
-      request.generationConfig = {
+      // Pass conversation history as contents
+      contents: input.input.map(turn => ({
+        role: turn.role === 'user' ? 'user' : 'model',
+        parts: [{ text: turn.content }],
+      })),
+      generationConfig: {
         temperature: generationConfig.temperature,
         maxOutputTokens: generationConfig.maxOutputTokens,
+      },
+    };
+
+    // Add thinking config if present and not a Gemma model
+    if (generationConfig.thinkingLevel && !this.isGemma()) {
+      request.generationConfig.thinkingConfig = {
+        includeThoughts: true,
       };
-      if (generationConfig.thinkingLevel) {
-        request.generationConfig.thinkingLevel = generationConfig.thinkingLevel;
-        request.generationConfig.thinkingSummaries = 'auto';
+
+      if (this.isGemini3()) {
+        request.generationConfig.thinkingConfig.thinkingLevel = generationConfig.thinkingLevel;
+      } else if (this.isGemini2()) {
+        // High level = 16k tokens, Low/Minimal = 4k tokens
+        const highBudget = (generationConfig.thinkingLevel === 'high' || generationConfig.thinkingLevel === 'medium');
+        request.generationConfig.thinkingConfig.thinkingBudget = highBudget ? 16000 : 4000;
       }
     }
 
-    if (!this.isGemma()) {
-      request.systemInstruction = input.systemInstruction;
-    } else if (input.systemInstruction && !input.previousInteractionId) {
-      // Gemma workaround: Prepend system instruction because the model doesn't support systemInstruction
-      const systemPrep = `[SYSTEM_INSTRUCTION]\n${input.systemInstruction}\n[/SYSTEM_INSTRUCTION]\n\n`;
-
-      // Prepend systemPrep to the first message if it's from user, or add a new one
-      if (request.input.length > 0) {
-        const firstTurn = request.input[0];
-        if (firstTurn.role === 'user') {
-          firstTurn.content = systemPrep + firstTurn.content;
-        } else {
-          request.input.unshift({ role: 'user', content: systemPrep + 'Hi' });
+    // Add system instruction if present
+    if (input.systemInstruction) {
+      if (this.isGemma()) {
+        // Gemma workaround: prepend to first user message
+        if (request.contents.length > 0 && request.contents[0].role === 'user') {
+          request.contents[0].parts[0].text = `[SYSTEM_INSTRUCTION]\n${input.systemInstruction}\n[/SYSTEM_INSTRUCTION]\n\n${request.contents[0].parts[0].text}`;
         }
       } else {
-        request.input.push({ role: 'user', content: systemPrep + 'Hi' });
+        request.systemInstruction = {
+          parts: [{ text: input.systemInstruction }],
+        };
       }
-    }
-
-    // Chain to previous interaction for stateful conversation
-    if (input.previousInteractionId) {
-      request.previousInteractionId = input.previousInteractionId;
     }
 
     return request;
   }
 
   /**
-   * Generate a response using the Gemini Interactions API.
+   * Generate a response using the Gemini generateContent API.
    */
   async generate(input: ModelInput): Promise<ModelResult> {
-    const request = this.prepareRequest(input, false);
+    const request = this.prepareRequest(input);
 
     // Make the API call
     console.debug('[GeminiClient.generate()] API request:', request);
-    const interaction = await this.client.interactions.create(request);
+    const result = await this.client.models.generateContent(request);
 
-    // Extract the response text - outputs may contain different content types
-    const outputs = interaction.outputs || [];
-    console.debug('[GeminiClient.generate()] Interaction outputs:', outputs);
+    // Extract content and thoughts
+    const candidate = result.candidates?.[0];
+    const parts = candidate?.content?.parts || [];
+
     let text = '';
-    for (const output of outputs) {
-      // Check if this is a text output (using 'any' to handle union types)
-      if ((output as any).type === 'text' && (output as any).text) {
-        text = (output as any).text;
-        break;
-      }
-      // Also check for direct text property
-      if ((output as any).text && typeof (output as any).text === 'string') {
-        text = (output as any).text;
-        break;
+    let thoughts = '';
+
+    for (const part of parts) {
+      if (part.text) {
+        text += part.text;
+      } else if ((part as any).thought) {
+        thoughts += (part as any).thought;
       }
     }
 
-    const usage = interaction.usage;
+    // Combine thoughts into text if present
+    if (thoughts) {
+      console.debug('[GeminiClient.generate()] Extracted thoughts:', thoughts);
+    }
+
+    const usage = result.usageMetadata;
     return {
       text,
-      interactionId: interaction.id || (interaction as any).interaction_id || '',
       usage: usage ? {
-        inputTokens: (usage as any).total_input_tokens ?? (usage as any).totalInputTokens ?? 0,
-        outputTokens: (usage as any).total_output_tokens ?? (usage as any).totalOutputTokens ?? 0,
-        totalTokens: (usage as any).total_tokens ?? (usage as any).totalTokens ?? 0,
+        inputTokens: usage.promptTokenCount || 0,
+        outputTokens: usage.candidatesTokenCount || 0,
+        totalTokens: usage.totalTokenCount || 0,
       } : undefined,
     };
   }
 
   /**
-   * Generate a streaming response using the Gemini Interactions API.
+   * Generate a streaming response using the Gemini generateContent API.
    */
   async *generateStream(input: ModelInput): AsyncIterable<ModelStreamChunk> {
-    const request = this.prepareRequest(input, true);
+    const request = this.prepareRequest(input);
 
     // Make the streaming API call
     console.debug('[GeminiClient.generateStream()] API request:', request);
-    const stream = await this.client.interactions.create(request);
+    const response = await this.client.models.generateContentStream(request);
 
     // Yield text chunks as they arrive
-    for await (const chunk of stream as any) {
+    for await (const chunk of response) {
       console.debug('[GeminiClient.generateStream()] API chunk:', chunk);
+      const candidate = chunk.candidates?.[0];
+      const parts = candidate?.content?.parts || [];
 
-      const eventType = chunk.event_type || chunk.eventType;
-
-      if (eventType === 'interaction.start' && chunk.interaction?.id) {
-        yield { type: 'interaction_id', interactionId: chunk.interaction.id };
-      }
-
-      if (eventType === 'content.delta') {
-        if (chunk.delta?.type === 'text' && chunk.delta?.text) {
-          yield { type: 'text', text: chunk.delta.text };
+      for (const part of parts) {
+        if (part.text) {
+          console.debug('[GeminiClient.generateStream()] API chunk:', part.text);
+          yield { type: 'text', text: part.text };
+        } else if ((part as any).thought) {
+          // Future: yield thoughts separately
+          console.debug('[GeminiClient.generateStream()] thought part:', (part as any).thought);
         }
       }
 
-      // Check for usage info in the final interaction state if possible
-      if (eventType === 'interaction.state' && chunk.interaction?.usage) {
-        const usage = chunk.interaction.usage;
+      const usage = chunk.usageMetadata;
+      if (usage) {
         yield {
           type: 'usage',
           usage: {
-            inputTokens: (usage as any).total_input_tokens ?? (usage as any).totalInputTokens ?? 0,
-            outputTokens: (usage as any).total_output_tokens ?? (usage as any).totalOutputTokens ?? 0,
-            totalTokens: (usage as any).total_tokens ?? (usage as any).totalTokens ?? 0,
+            inputTokens: usage.promptTokenCount || 0,
+            outputTokens: usage.candidatesTokenCount || 0,
+            totalTokens: usage.totalTokenCount || 0,
           }
         };
       }

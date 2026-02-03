@@ -91,7 +91,6 @@ export abstract class Agent {
     const result = await this.modelProvider.generate({
       systemInstruction,
       input: recentTurns,
-      previousInteractionId: this.history.getLastInteractionId() || undefined,
       generationConfig: this.config.generationConfig,
     });
 
@@ -105,8 +104,7 @@ export abstract class Agent {
     const modelTurn = this.history.addTurn(
       'model',
       parsed.response || '',
-      parsed.linkUpdates.map(u => u.nodeId),
-      result.interactionId
+      parsed.linkUpdates.map(u => u.nodeId)
     );
 
     return {
@@ -142,20 +140,16 @@ export abstract class Agent {
     const stream = this.modelProvider.generateStream({
       systemInstruction,
       input: recentTurns,
-      previousInteractionId: this.history.getLastInteractionId() || undefined,
       generationConfig: this.config.generationConfig,
     });
 
     let fullText = '';
-    let interactionId = '';
     let usage: any;
 
     for await (const chunk of stream) {
       if (chunk.type === 'text') {
         fullText += chunk.text;
         yield chunk.text;
-      } else if (chunk.type === 'interaction_id') {
-        interactionId = chunk.interactionId;
       } else if (chunk.type === 'usage') {
         usage = chunk.usage;
       }
@@ -171,8 +165,7 @@ export abstract class Agent {
     this.history.addTurn(
       'model',
       parsed.response || '',
-      parsed.linkUpdates.map(u => u.nodeId),
-      interactionId || this.history.getLastInteractionId() || undefined
+      parsed.linkUpdates.map(u => u.nodeId)
     );
 
     // Note: Usage is currently not saved in Turn history but could be

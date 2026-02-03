@@ -31,23 +31,18 @@ export class ConversationHistory {
   /** The most recent turn in the chain */
   private latestTurnId: TurnId | null = null;
 
-  /** The last Gemini interaction ID for stateful conversation */
-  private lastInteractionId: string | null = null;
-
   /**
    * Adds a new turn to the conversation.
    * 
    * @param role - 'user' or 'model'
    * @param content - The message content
    * @param relatedNodes - Links to related context nodes
-   * @param interactionId - Optional Gemini interaction ID
    * @returns The created turn
    */
   addTurn(
     role: TurnRole,
     content: string,
-    relatedNodes: NodeId[] = [],
-    interactionId?: string
+    relatedNodes: NodeId[] = []
   ): Turn {
     const turn: Turn = {
       id: generateTurnId(),
@@ -56,15 +51,10 @@ export class ConversationHistory {
       timestamp: new Date(),
       previousTurnId: this.latestTurnId,
       relatedNodes,
-      interactionId,
     };
 
     this.turns.set(turn.id, turn);
     this.latestTurnId = turn.id;
-
-    if (interactionId) {
-      this.lastInteractionId = interactionId;
-    }
 
     return turn;
   }
@@ -104,13 +94,6 @@ export class ConversationHistory {
   }
 
   /**
-   * Gets the last Gemini interaction ID for stateful conversation.
-   */
-  getLastInteractionId(): string | null {
-    return this.lastInteractionId;
-  }
-
-  /**
    * Gets the total number of turns.
    */
   get length(): number {
@@ -146,7 +129,6 @@ export class ConversationHistory {
     return {
       turns,
       latestTurnId: this.latestTurnId,
-      lastInteractionId: this.lastInteractionId,
     };
   }
 
@@ -156,7 +138,6 @@ export class ConversationHistory {
   static deserialize(data: {
     turns: Turn[];
     latestTurnId: TurnId | null;
-    lastInteractionId: string | null;
   }): ConversationHistory {
     const history = new ConversationHistory();
     for (const turnData of data.turns) {
@@ -173,7 +154,6 @@ export class ConversationHistory {
     history.latestTurnId = data.latestTurnId
       ? turnId(data.latestTurnId as string)
       : null;
-    history.lastInteractionId = data.lastInteractionId;
     return history;
   }
 }
