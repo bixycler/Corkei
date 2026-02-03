@@ -32,18 +32,35 @@ export interface GeminiClientConfig {
 /**
  * Supported models for Gemini and Gemma.
  */
-export const SUPPORTED_MODELS: Record<string, { name: string; thinkingLevels: string[] }> = {
-  //'gemma-3-270m-it': { name: 'Gemma 3 270M', thinkingLevels: [] }, // Unsupported by Interactions API
-  //'gemma-3-1b-it': { name: 'Gemma 3 1B', thinkingLevels: [] }, // Too small for agentic workflows
-  //'gemma-3-2b-it': { name: 'Gemma 3 2B', thinkingLevels: [] }, // Unsupported by Interactions API
-  'gemma-3-4b-it': { name: 'Gemma 3 4B', thinkingLevels: [] },
-  'gemma-3-12b-it': { name: 'Gemma 3 12B', thinkingLevels: [] },
-  'gemma-3-27b-it': { name: 'Gemma 3 27B', thinkingLevels: [] },
-  //'gemini-2.5-flash-lite': { name: 'Gemini 2.5 Flash Lite', thinkingLevels: ['low', 'high'] }, // Conflicting settings: thinkingLevel = ['low'=256, 'high'=?] but 256 < min thinkingBudget = 512
-  'gemini-2.5-flash': { name: 'Gemini 2.5 Flash', thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
-  'gemini-2.5-pro': { name: 'Gemini 2.5 Pro', thinkingLevels: ['low', 'high'] },
-  'gemini-3-flash-preview': { name: 'Gemini 3 Flash', thinkingLevels: ['minimal', 'low', 'medium', 'high'] },
-  'gemini-3-pro-preview': { name: 'Gemini 3 Pro', thinkingLevels: ['low', 'high'] },
+export const SUPPORTED_MODELS: Record<string, { name: string; thinkingLevels: string[]; thinkingBudgets: Record<string, number> }> = {
+  //'gemma-3-270m-it': { name: 'Gemma 3 270M', thinkingLevels: [], thinkingBudgets: null }, // Unsupported by Interactions API
+  //'gemma-3-1b-it': { name: 'Gemma 3 1B', thinkingLevels: [], thinkingBudgets: null }, // Too small for agentic workflows
+  //'gemma-3-2b-it': { name: 'Gemma 3 2B', thinkingLevels: [], thinkingBudgets: null }, // Unsupported by GenAI API
+  'gemma-3-4b-it': { name: 'Gemma 3 4B', thinkingLevels: [], thinkingBudgets: null },
+  'gemma-3-12b-it': { name: 'Gemma 3 12B', thinkingLevels: [], thinkingBudgets: null },
+  'gemma-3-27b-it': { name: 'Gemma 3 27B', thinkingLevels: [], thinkingBudgets: null },
+  'gemini-2.0-flash-lite': { name: 'Gemini 2.0 Flash Lite', thinkingLevels: [], thinkingBudgets: null }, // Free tier
+  'gemini-2.0-flash': { name: 'Gemini 2.0 Flash', thinkingLevels: [], thinkingBudgets: null }, // Paid tier
+  'gemini-2.5-flash-lite': {
+    name: 'Gemini 2.5 Flash Lite', thinkingLevels: ['none', 'low', 'medium', 'high', 'dynamic'],
+    thinkingBudgets: { 'none': 0, 'low': 1 << 9, 'medium': 12 << 10, 'high': 24 << 10, 'dynamic': -1 }
+  },
+  'gemini-2.5-flash': {
+    name: 'Gemini 2.5 Flash', thinkingLevels: ['none', 'low', 'medium', 'high', 'dynamic'],
+    thinkingBudgets: { 'none': 0, 'low': 1 << 9, 'medium': 12 << 10, 'high': 24 << 10, 'dynamic': -1 }
+  },
+  'gemini-2.5-pro': {
+    name: 'Gemini 2.5 Pro', thinkingLevels: ['none', 'low', 'medium', 'high', 'dynamic'],
+    thinkingBudgets: { 'none': 0, 'low': 1 << 7, 'medium': 16 << 10, 'high': 32 << 10, 'dynamic': -1 }
+  },
+  'gemini-3-flash-preview': {
+    name: 'Gemini 3 Flash', thinkingLevels: ['minimal', 'low', 'medium', 'high'],
+    thinkingBudgets: null
+  },
+  'gemini-3-pro-preview': {
+    name: 'Gemini 3 Pro', thinkingLevels: ['low', 'high'],
+    thinkingBudgets: null
+  },
 };
 
 /**
@@ -143,10 +160,36 @@ export class GeminiClient extends ModelProvider {
    * Prepares the generateContent request object.
    */
   private prepareRequest(input: ModelInput): any {
-    const generationConfig = {
+    const generationConfigBase = {
       ...this.defaultConfig,
       ...input.generationConfig,
     };
+    const model = SUPPORTED_MODELS[this.model];
+
+    const config: any = {
+      temperature: generationConfigBase.temperature,
+      maxOutputTokens: generationConfigBase.maxOutputTokens,
+    };
+
+    // Add thinking config if present (directly inside config for @google/genai SDK)
+    if (generationConfigBase.thinkingLevel) {
+      config.thinkingConfig = {
+        includeThoughts: true,
+      };
+
+      if (!model.thinkingBudgets) {
+        config.thinkingConfig.thinkingLevel = generationConfigBase.thinkingLevel;
+      } else {
+        config.thinkingConfig.thinkingBudget = model.thinkingBudgets[generationConfigBase.thinkingLevel];
+      }
+    }
+
+    // Add system instruction if present (unless Gemma workaround applies)
+    if (input.systemInstruction && !this.isGemma()) {
+      config.systemInstruction = {
+        parts: [{ text: input.systemInstruction }],
+      };
+    }
 
     const request: any = {
       model: this.model,
@@ -155,40 +198,13 @@ export class GeminiClient extends ModelProvider {
         role: turn.role === 'user' ? 'user' : 'model',
         parts: [{ text: turn.content }],
       })),
-      config: {
-        generationConfig: {
-          temperature: generationConfig.temperature,
-          maxOutputTokens: generationConfig.maxOutputTokens,
-        }
-      }
+      config,
     };
 
-    // Add thinking config if present and not a Gemma model
-    if (generationConfig.thinkingLevel && !this.isGemma()) {
-      request.config.thinkingConfig = {
-        includeThoughts: true,
-      };
-
-      if (this.isGemini3()) {
-        request.config.thinkingConfig.thinkingLevel = generationConfig.thinkingLevel;
-      } else if (this.isGemini2()) {
-        // High level = 16k tokens, Low/Minimal = 4k tokens
-        const highBudget = (generationConfig.thinkingLevel === 'high' || generationConfig.thinkingLevel === 'medium');
-        request.config.thinkingConfig.thinkingBudget = highBudget ? 16000 : 4000;
-      }
-    }
-
-    // Add system instruction if present
-    if (input.systemInstruction) {
-      if (this.isGemma()) {
-        // Gemma workaround: prepend to first user message
-        if (request.contents.length > 0 && request.contents[0].role === 'user') {
-          request.contents[0].parts[0].text = `[SYSTEM_INSTRUCTION]\n${input.systemInstruction}\n[/SYSTEM_INSTRUCTION]\n\n${request.contents[0].parts[0].text}`;
-        }
-      } else {
-        request.config.systemInstruction = {
-          parts: [{ text: input.systemInstruction }],
-        };
+    // Gemma workaround: prepend to first user message
+    if (input.systemInstruction && this.isGemma()) {
+      if (request.contents.length > 0 && request.contents[0].role === 'user') {
+        request.contents[0].parts[0].text = `[SYSTEM_INSTRUCTION]\n${input.systemInstruction}\n[/SYSTEM_INSTRUCTION]\n\n${request.contents[0].parts[0].text}`;
       }
     }
 
@@ -267,7 +283,7 @@ export class GeminiClient extends ModelProvider {
             console.debug('[GeminiClient.generateStream()] chunk thought:', thought);
             yield { type: 'thought', text: thought };
           } else if (thought === true && part.text) {
-            console.debug('[GeminiClient.generateStream()] chunk thought (flagged):', part.text);
+            console.debug('[GeminiClient.generateStream()] chunk [thought]:', part.text);
             yield { type: 'thought', text: part.text };
           }
         } else if (part.text) {

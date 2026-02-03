@@ -116,6 +116,131 @@
   cursor: not-allowed;
 }
 
+/* Temperature Slider Dropdown */
+.temperature-control-container {
+  position: relative;
+  margin-left: 4px;
+}
+
+.temperature-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #888;
+  padding: 4px 8px;
+  background: #181818;
+  border: 1px solid #444;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+
+.temperature-trigger:hover {
+  border-color: #6cf;
+  color: #e0e0e0;
+  background: #202020;
+}
+
+.temp-value {
+  font-family: monospace;
+  font-weight: 600;
+  min-width: 24px;
+  color: var(--temp-color, #888);
+  transition: color 0.2s;
+}
+
+.temperature-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: #252525;
+  border: 1px solid #444;
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  z-index: 1001;
+  animation: dropdownIn 0.2s ease-out;
+}
+
+@keyframes dropdownIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--temp-color, #6cf);
+  transition: color 0.2s;
+}
+
+.dropdown-header button {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.dropdown-header button:hover {
+  color: #fff;
+}
+
+.slider-container {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+  height: 100px;
+  gap: 10px;
+  padding: 2px 0;
+}
+
+.temp-slider {
+  height: 100%;
+  width: 20px;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  accent-color: var(--temp-color, #6cf);
+  cursor: pointer;
+  transition: accent-color 0.2s;
+}
+
+.slider-labels {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  text-align: right;
+  flex: 1;
+}
+
+.dropdown-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: transparent;
+  z-index: 1000;
+}
+
 .message-list {
   flex: 1;
   overflow-y: auto;

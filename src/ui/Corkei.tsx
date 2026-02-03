@@ -82,8 +82,9 @@ const Corkei: Component<CorkeiProps> = (props) => {
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [selectedModel, setSelectedModel] = createSignal(DEFAULT_MODEL);
-  const [thinkingLevel, setThinkingLevel] = createSignal<any>('minimal');
+  const [thinkingLevel, setThinkingLevel] = createSignal<any>(SUPPORTED_MODELS[DEFAULT_MODEL]?.thinkingLevels[0]);
   const [streamingEnabled, setStreamingEnabled] = createSignal(true);
+  const [temperature, setTemperature] = createSignal(1.0);
 
   // Agent instance (initialized on mount or when model changes)
   let agent: MainAgent | null = null;
@@ -103,7 +104,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
           rootNodeId: rootNodeId(),
           model: selectedModel(),
           generationConfig: {
-            temperature: 1.0,
+            temperature: temperature(),
             thinkingLevel: thinkingLevel(),
           },
         },
@@ -111,7 +112,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
         client,
         conversationHistory
       );
-      console.log(`Agent (re)initialized with model: ${selectedModel()}`);
+      console.log(`Agent (re)initialized with model: ${selectedModel()}, temperature: ${temperature()}, thinkingLevel: ${thinkingLevel()}`);
     } catch (err) {
       // API key not configured - show demo mode
       setError('Gemini API key not configured. Running in demo mode.');
@@ -148,6 +149,12 @@ const Corkei: Component<CorkeiProps> = (props) => {
   // Handle thinking level change
   const handleThinkingLevelChange = (level: any) => {
     setThinkingLevel(level);
+    initAgent();
+  };
+
+  // Handle temperature change
+  const handleTemperatureChange = (temp: number) => {
+    setTemperature(temp);
     initAgent();
   };
 
@@ -268,6 +275,8 @@ const Corkei: Component<CorkeiProps> = (props) => {
         onThinkingLevelChange={handleThinkingLevelChange}
         streamingEnabled={streamingEnabled()}
         onStreamingToggle={setStreamingEnabled}
+        temperature={temperature()}
+        onTemperatureChange={handleTemperatureChange}
       />
 
       {/* Divider */}
