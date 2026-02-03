@@ -117,6 +117,9 @@ export interface Turn {
    * This mapping is done by the agent as part of its output.
    */
   relatedNodes: NodeId[];
+
+  /** Thinking / Reasoning process of the model */
+  thoughts?: string;
 }
 
 // =============================================================================
@@ -217,6 +220,9 @@ export interface ModelResult {
   /** Generated text output */
   text: string;
 
+  /** Thinking / Reasoning process of the model */
+  thoughts?: string;
+
   /** Token usage statistics */
   usage?: {
     inputTokens: number;
@@ -230,6 +236,7 @@ export interface ModelResult {
  */
 export type ModelStreamChunk =
   | { type: 'text'; text: string }
+  | { type: 'thought'; text: string }
   | { type: 'usage'; usage: ModelResult['usage'] };
 
 /**

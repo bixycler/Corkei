@@ -184,13 +184,18 @@ const Corkei: Component<CorkeiProps> = (props) => {
       try {
         const stream = agent.processTurnStream(message);
 
-        // Update UI with the user turn that was just added to history
+        // Update UI IMMEDIATELY with the user turn that was just added to history
         setTurns(conversationHistory.getRecentTurns(100));
 
         let modelContent = '';
+        let modelThoughts = '';
 
         for await (const chunk of stream) {
-          modelContent += chunk;
+          if (chunk.type === 'text') {
+            modelContent += chunk.content;
+          } else if (chunk.type === 'thought') {
+            modelThoughts += chunk.content;
+          }
 
           // Show partial content in the UI
           const historyTurns = conversationHistory.getRecentTurns(100);
@@ -200,6 +205,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
               id: 'streaming' as any,
               role: 'model',
               content: modelContent,
+              thoughts: modelThoughts,
               timestamp: new Date(),
               previousTurnId: historyTurns[historyTurns.length - 1]?.id || null,
               relatedNodes: [],
@@ -218,9 +224,15 @@ const Corkei: Component<CorkeiProps> = (props) => {
       } finally {
         setIsLoading(false);
       }
-    } else {
+    } else { // Non-streaming mode
       try {
-        await agent.processTurn(message);
+        // Start processing (Agent records the turn internally)
+        const processPromise = agent.processTurn(message);
+
+        // Update UI IMMEDIATELY to show the user message
+        setTurns(conversationHistory.getRecentTurns(100));
+
+        await processPromise;
         setTurns(conversationHistory.getRecentTurns(100));
         setGraph(new Map(graph()));
       } catch (err) {

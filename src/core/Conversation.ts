@@ -42,7 +42,8 @@ export class ConversationHistory {
   addTurn(
     role: TurnRole,
     content: string,
-    relatedNodes: NodeId[] = []
+    relatedNodes: NodeId[] = [],
+    thoughts?: string
   ): Turn {
     const turn: Turn = {
       id: generateTurnId(),
@@ -51,6 +52,7 @@ export class ConversationHistory {
       timestamp: new Date(),
       previousTurnId: this.latestTurnId,
       relatedNodes,
+      thoughts,
     };
 
     this.turns.set(turn.id, turn);

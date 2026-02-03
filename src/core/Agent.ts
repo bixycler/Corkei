@@ -100,11 +100,12 @@ export abstract class Agent {
     // 5. Apply updates to graph
     this.applyNodeUpdates(parsed.nodeUpdates);
 
-    // 6. Record model turn with links
+    // 6. Record model turn with links and thoughts
     const modelTurn = this.history.addTurn(
       'model',
       parsed.response || '',
-      parsed.linkUpdates.map(u => u.nodeId)
+      parsed.linkUpdates.map(u => u.nodeId),
+      result.thoughts
     );
 
     return {
@@ -119,12 +120,21 @@ export abstract class Agent {
    * Processes a user message with streaming.
    * 
    * @param userMessage - The user message
-   * @yields Text chunks as they arrive
+   * @returns An async iterable of structured chunks
    */
-  async *processTurnStream(userMessage: string): AsyncIterable<string> {
-    // 1. Record user turn
-    const userTurn = this.history.addTurn('user', userMessage);
+  processTurnStream(userMessage: string): AsyncIterable<{ type: 'text' | 'thought', content: string }> {
+    // 1. Record user turn IMMEDIATELY (sync)
+    // This allows the UI to show the user message without waiting for the streaming to start
+    this.history.addTurn('user', userMessage);
 
+    // Return the generator that will handle the model interaction
+    return this._processTurnStreamInner(userMessage);
+  }
+
+  /**
+   * Internal implementation of the streaming process.
+   */
+  private async *_processTurnStreamInner(userMessage: string): AsyncIterable<{ type: 'text' | 'thought', content: string }> {
     // 2. Build context
     const systemInstruction = this.getSystemInstruction();
     const recentTurns = this.history.getRecentTurnsForModel(this.recentTurnsCount);
@@ -132,8 +142,20 @@ export abstract class Agent {
     // 3. Call model stream (fallback to generate if not supported)
     if (!this.modelProvider.generateStream) {
       console.warn('ModelProvider does not support streaming, falling back to non-streaming');
-      const result = await this.processTurn(userMessage);
-      yield result.response || '';
+      const result = await this.modelProvider.generate({
+        systemInstruction,
+        input: recentTurns,
+        generationConfig: this.config.generationConfig,
+      });
+      const parsed = this.parseResponse(result.text);
+      this.applyNodeUpdates(parsed.nodeUpdates);
+      this.history.addTurn(
+        'model',
+        parsed.response || '',
+        parsed.linkUpdates.map(u => u.nodeId),
+        result.thoughts
+      );
+      yield { type: 'text', content: parsed.response || '' };
       return;
     }
 
@@ -144,14 +166,15 @@ export abstract class Agent {
     });
 
     let fullText = '';
-    let usage: any;
+    let accumulatedThoughts = '';
 
     for await (const chunk of stream) {
       if (chunk.type === 'text') {
         fullText += chunk.text;
-        yield chunk.text;
-      } else if (chunk.type === 'usage') {
-        usage = chunk.usage;
+        yield { type: 'text', content: chunk.text };
+      } else if (chunk.type === 'thought') {
+        accumulatedThoughts += chunk.text;
+        yield { type: 'thought', content: chunk.text };
       }
     }
 
@@ -161,14 +184,13 @@ export abstract class Agent {
     // 5. Apply updates to graph
     this.applyNodeUpdates(parsed.nodeUpdates);
 
-    // 6. Record model turn with links
+    // 6. Record model turn with links and thoughts
     this.history.addTurn(
       'model',
       parsed.response || '',
-      parsed.linkUpdates.map(u => u.nodeId)
+      parsed.linkUpdates.map(u => u.nodeId),
+      accumulatedThoughts || undefined
     );
-
-    // Note: Usage is currently not saved in Turn history but could be
   }
 
   /**

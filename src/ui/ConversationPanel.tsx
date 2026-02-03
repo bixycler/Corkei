@@ -124,12 +124,23 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
         <For each={props.turns}>
           {(turn) => (
             <div class={`message ${turn.role} ${turn.id === 'streaming' ? 'streaming' : ''}`}>
-              <div class="message-role">
-                {turn.role === 'user' ? 'You' : 'Corkei'}
+              <div class="message-header">
+                <span class="message-role">
+                  {turn.role === 'user' ? 'You' : 'Corkei'}
+                </span>
+                <span class="message-time">
+                  {turn.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}
+                </span>
               </div>
               <div class="message-content">
                 {turn.content}
               </div>
+              <Show when={turn.thoughts}>
+                <details class="message-thoughts" open={turn.id === 'streaming'}>
+                  <summary class="thoughts-header">Thought process</summary>
+                  <div class="thoughts-content">{turn.thoughts}</div>
+                </details>
+              </Show>
               {turn.relatedNodes.length > 0 && (
                 <div class="message-links">
                   <span class="links-label">Related:</span>

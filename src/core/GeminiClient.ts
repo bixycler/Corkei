@@ -53,6 +53,7 @@ export const DEFAULT_MODEL = 'gemini-2.5-flash'; // 'gemini-3-flash-preview' has
 
 /**
  * Gets the API key from various sources.
+ * Priority: config > env var > Vite env
  */
 function getApiKey(config?: GeminiClientConfig): string {
   // 1. Runtime config
@@ -114,7 +115,10 @@ export class GeminiClient extends ModelProvider {
     // Use proxy in development to avoid CORS
     // import.meta.env.DEV is Vite's way to check for development mode
     const isDev = (import.meta as any).env?.DEV;
-    const clientOptions: any = { apiKey };
+    const clientOptions: any = {
+      apiKey,
+      //apiVersion: 'v1alpha'
+    };
 
     if (isDev) {
       // This matches the proxy rule in vite.config.ts
@@ -151,24 +155,26 @@ export class GeminiClient extends ModelProvider {
         role: turn.role === 'user' ? 'user' : 'model',
         parts: [{ text: turn.content }],
       })),
-      generationConfig: {
-        temperature: generationConfig.temperature,
-        maxOutputTokens: generationConfig.maxOutputTokens,
-      },
+      config: {
+        generationConfig: {
+          temperature: generationConfig.temperature,
+          maxOutputTokens: generationConfig.maxOutputTokens,
+        }
+      }
     };
 
     // Add thinking config if present and not a Gemma model
     if (generationConfig.thinkingLevel && !this.isGemma()) {
-      request.generationConfig.thinkingConfig = {
+      request.config.thinkingConfig = {
         includeThoughts: true,
       };
 
       if (this.isGemini3()) {
-        request.generationConfig.thinkingConfig.thinkingLevel = generationConfig.thinkingLevel;
+        request.config.thinkingConfig.thinkingLevel = generationConfig.thinkingLevel;
       } else if (this.isGemini2()) {
         // High level = 16k tokens, Low/Minimal = 4k tokens
         const highBudget = (generationConfig.thinkingLevel === 'high' || generationConfig.thinkingLevel === 'medium');
-        request.generationConfig.thinkingConfig.thinkingBudget = highBudget ? 16000 : 4000;
+        request.config.thinkingConfig.thinkingBudget = highBudget ? 16000 : 4000;
       }
     }
 
@@ -180,7 +186,7 @@ export class GeminiClient extends ModelProvider {
           request.contents[0].parts[0].text = `[SYSTEM_INSTRUCTION]\n${input.systemInstruction}\n[/SYSTEM_INSTRUCTION]\n\n${request.contents[0].parts[0].text}`;
         }
       } else {
-        request.systemInstruction = {
+        request.config.systemInstruction = {
           parts: [{ text: input.systemInstruction }],
         };
       }
@@ -198,6 +204,7 @@ export class GeminiClient extends ModelProvider {
     // Make the API call
     console.debug('[GeminiClient.generate()] API request:', request);
     const result = await this.client.models.generateContent(request);
+    console.debug('[GeminiClient.generate()] API response:', result);
 
     // Extract content and thoughts
     const candidate = result.candidates?.[0];
@@ -207,21 +214,28 @@ export class GeminiClient extends ModelProvider {
     let thoughts = '';
 
     for (const part of parts) {
-      if (part.text) {
+      const thought = (part as any).thought;
+      if (thought) {
+        // Handle both thought as string and thought as boolean with text
+        if (typeof thought === 'string') {
+          thoughts += thought;
+        } else if (thought === true && part.text) {
+          thoughts += part.text;
+        }
+      } else if (part.text) {
         text += part.text;
-      } else if ((part as any).thought) {
-        thoughts += (part as any).thought;
       }
     }
-
-    // Combine thoughts into text if present
+    // Log extracted components
     if (thoughts) {
       console.debug('[GeminiClient.generate()] Extracted thoughts:', thoughts);
     }
+    console.debug('[GeminiClient.generate()] Extracted text:', text);
 
     const usage = result.usageMetadata;
     return {
       text,
+      thoughts: thoughts || undefined,
       usage: usage ? {
         inputTokens: usage.promptTokenCount || 0,
         outputTokens: usage.candidatesTokenCount || 0,
@@ -242,17 +256,23 @@ export class GeminiClient extends ModelProvider {
 
     // Yield text chunks as they arrive
     for await (const chunk of response) {
-      console.debug('[GeminiClient.generateStream()] API chunk:', chunk);
+      console.debug('[GeminiClient.generateStream()] chunk:', chunk);
       const candidate = chunk.candidates?.[0];
       const parts = candidate?.content?.parts || [];
 
       for (const part of parts) {
-        if (part.text) {
-          console.debug('[GeminiClient.generateStream()] API chunk:', part.text);
+        const thought = (part as any).thought;
+        if (thought) {
+          if (typeof thought === 'string') {
+            console.debug('[GeminiClient.generateStream()] chunk thought:', thought);
+            yield { type: 'thought', text: thought };
+          } else if (thought === true && part.text) {
+            console.debug('[GeminiClient.generateStream()] chunk thought (flagged):', part.text);
+            yield { type: 'thought', text: part.text };
+          }
+        } else if (part.text) {
+          console.debug('[GeminiClient.generateStream()] chunk text:', part.text);
           yield { type: 'text', text: part.text };
-        } else if ((part as any).thought) {
-          // Future: yield thoughts separately
-          console.debug('[GeminiClient.generateStream()] thought part:', (part as any).thought);
         }
       }
 
