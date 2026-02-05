@@ -168,6 +168,44 @@
       font-weight: 600;
     }
 
+    .stats-row {
+      display: flex;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 1rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px dashed #eee;
+    }
+
+    .stats-item {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .stats-label {
+      font-weight: 600;
+      color: #888;
+    }
+
+    .stats-value {
+      color: var(--primary-color);
+      font-weight: 500;
+    }
+
+    .global-rpm-row {
+      flex-basis: 100%;
+      display: flex;
+      justify-content: flex-end;
+      gap: 1.5rem;
+      font-size: 0.85rem;
+      color: #666;
+      margin-top: 0.5rem;
+      padding-top: 0.5rem;
+      border-top: 1px solid #f0f0f0;
+    }
+
     .file-input-wrapper {
       position: relative;
       overflow: hidden;
@@ -342,7 +380,12 @@
       <label for="magnified-toggle">Magnified Histogram</label>
       <input type="checkbox" id="magnified-toggle" checked />
     </div>
+    <div class="control-group" title="Show only Travelport (Galileo) searches">
+      <label for="travelport-toggle">Only Travelport</label>
+      <input type="checkbox" id="travelport-toggle" checked />
+    </div>
     <div id="global-summary" style="font-size: 0.9rem; font-weight: 600; color: #555; margin-left: auto;"></div>
+    <div id="global-rpm" class="global-rpm-row"></div>
   </div>
 
   <div id="histograms"></div>
@@ -355,9 +398,11 @@
     const fileNameDisplay = document.getElementById('file-name');
     const cutoffInput = document.getElementById('cutoff-threshold');
     const magnifiedToggle = document.getElementById('magnified-toggle');
+    const travelportToggle = document.getElementById('travelport-toggle');
     const globalSummary = document.getElementById('global-summary');
+    const globalRPM = document.getElementById('global-rpm');
 
-    let currentLogData = null; // Store data for re-rendering
+    let currentLogData = null; // Store RAW events for filtering
 
     async function loadAndDraw(logFile = 'test-histogram.log', log = null) {
       try {
@@ -365,9 +410,9 @@
           const response = await fetch(logFile);
           log = await response.text();
         }
-        let data = parseLog(log);
-        currentLogData = data;
-        renderData(data);
+        let events = parseLogEvents(log);
+        currentLogData = events;
+        renderData(events);
       } catch (error) {
         console.error("Error loading/rendering log:", error);
         container.html("");
@@ -395,6 +440,44 @@
     magnifiedToggle.addEventListener('change', () => {
       if (currentLogData) renderData(currentLogData);
     });
+
+    travelportToggle.addEventListener('change', () => {
+      if (currentLogData) renderData(currentLogData);
+    });
+
+    function calculateRPMStats(events) {
+      if (!events || events.length === 0) return null;
+
+      const timestamps = events.map(e => e.endTime).filter(t => t);
+      if (timestamps.length === 0) return null;
+
+      const minT = d3.min(timestamps);
+      const maxT = d3.max(timestamps);
+
+      // Bucket size: 1 minute (60,000 ms)
+      const bucketSize = 60000;
+      const bucketCount = Math.ceil((maxT - minT + 1) / bucketSize);
+
+      const buckets = new Array(bucketCount).fill(0);
+      events.forEach(e => {
+        if (!e.endTime) return;
+        const bucketIndex = Math.floor((e.endTime - minT) / bucketSize);
+        if (bucketIndex >= 0 && bucketIndex < bucketCount) {
+          buckets[bucketIndex]++;
+        }
+      });
+
+      const avg = (events.length / (Math.max(60000, maxT - minT) / 60000));
+      const max = d3.max(buckets);
+      const min = d3.min(buckets);
+
+      return { avg, max, min };
+    }
+
+    function formatRPM(stats) {
+      if (!stats) return "RPM: N/A";
+      return `RPM: Avg ${stats.avg.toFixed(1)} | Max ${stats.max} | Min ${stats.min}`;
+    }
 
     function parseLogEvents(log) {
       let events = [];
@@ -468,13 +551,24 @@
       return events;
     }
 
-    function parseLog(log) {
-      let events = parseLogEvents(log);
+    function processEvents(events) {
+      if (!events) return [];
 
-      // Extract Travelport (Galileo[AP])
-      let travp = events.filter((sv) => sv.endTimeRaw && sv.lastGoodsCount > 0 && sv.gds && sv.gds.includes('Galileo'));
-      // Extract sv.request
-      for (let sv of travp) {
+      const onlyTravelport = travelportToggle.checked;
+
+      // Filter by lastGoodsCount > 0 and optionally by Travelport
+      let filtered = events.filter(sv => {
+        const hasGds = sv.lastGoodsCount > 0 && sv.gds;
+        if (!hasGds) return false;
+        if (onlyTravelport) return sv.gds.includes('Galileo');
+        return true;
+      });
+
+      // Parse requests if not already done
+      for (let sv of filtered) {
+        if (sv.request) continue;
+
+        // Extract sv.request
         let reqln = null;
         for (let ln of sv.logs) {
           if (ln.includes('airListSchSv(req)')) {
@@ -495,18 +589,22 @@
       }
 
       // Calculate sv.nLegs
-      for (let sv of travp) {
+      for (let sv of filtered) {
+        if (sv.nLegs !== undefined) continue;
         if (!sv.request) { sv.nLegs = 0; continue }
         sv.nLegs = Object.keys(sv.request).reduce((nLegs, key) => {
           let m = key.match(/DEP_CD(.*)/);
           if (m && Number(m[1]) > nLegs) return Number(m[1]); else return nLegs
-        }
-          , 0)
+        }, 0);
       }
 
       // Size per nLegs
       let travpSizes = [[], [], [], [], [], [], [], [], [], [], []]; // 0..10 legs
-      for (let sv of travp) { travpSizes[sv.nLegs].push(sv); }
+      for (let sv of filtered) {
+        if (sv.nLegs >= 0 && sv.nLegs < travpSizes.length) {
+          travpSizes[sv.nLegs].push(sv);
+        }
+      }
       for (let i = 0; i < travpSizes.length; i++) {
         travpSizes[i].sort((a, b) => a.lastGoodsCount - b.lastGoodsCount);
       }
@@ -517,20 +615,25 @@
       return travpSizes;
     }
 
-    function renderData(data) {
+    function renderData(events) {
       container.html("");
 
-      if (!data || data.length === 0) {
+      if (!events || events.length === 0) {
         container.append("p").text("No data found").attr("class", "no-data");
         globalSummary.textContent = "";
+        globalRPM.textContent = "";
         return;
       }
 
+      const travpSizes = processEvents(events);
+      const allFilteredEvents = travpSizes.flat();
+
+      const globalStats = calculateRPMStats(allFilteredEvents);
       const globalCutoff = parseInt(cutoffInput.value, 10) || 3000;
       let totalCutoffCount = 0;
       let totalCasesCount = 0;
 
-      data.forEach((legData, index) => {
+      travpSizes.forEach((legData, index) => {
         if (!legData || legData.length === 0) {
           console.log(`No data found for journey with ${index} leg`);
           return;
@@ -542,6 +645,7 @@
         totalCutoffCount += cutoffCount;
         totalCasesCount += count;
 
+        const stats = calculateRPMStats(legData);
         const wrapper = container.append("div").attr("class", "histogram-container");
         const titleLine = wrapper.append("div").attr("class", "histogram-title");
         titleLine.append("span").text(`Journey with ${index} Leg${index > 1 ? 's' : ''} (Total: ${d3.format(",")(count)})`);
@@ -552,6 +656,15 @@
             .style("font-size", "0.9rem")
             .style("color", "var(--accent-color)")
             .text(`(${cutoffCount} cutoff cases, ${cutoffPct}%)`);
+        }
+
+        const statsRow = wrapper.append("div").attr("class", "stats-row");
+        if (stats) {
+          statsRow.append("div").attr("class", "stats-item").html(`<span class="stats-label">RPM:</span> <span class="stats-value">Avg ${stats.avg.toFixed(1)}</span>`);
+          statsRow.append("div").attr("class", "stats-item").html(`<span class="stats-label">Max:</span> <span class="stats-value">${stats.max}</span>`);
+          statsRow.append("div").attr("class", "stats-item").html(`<span class="stats-label">Min:</span> <span class="stats-value">${stats.min}</span>`);
+        } else {
+          statsRow.append("div").attr("class", "stats-item").html(`<span class="stats-label">RPM:</span> <span class="stats-value">N/A</span>`);
         }
 
         const chartArea = wrapper.append("div").attr("class", "chart-area");
@@ -566,7 +679,17 @@
       });
 
       const globalPct = totalCasesCount > 0 ? ((totalCutoffCount / totalCasesCount) * 100).toFixed(1) : 0;
-      globalSummary.textContent = `Total Cases: ${d3.format(",")(totalCasesCount)} | Cutoff: ${d3.format(",")(totalCutoffCount)} (${globalPct}%)`;
+      globalSummary.textContent = `Total Cases: ${d3.format(",")(totalCasesCount)} | Cutoff: ${totalCutoffCount} (${globalPct}%)`;
+
+      if (globalStats) {
+        globalRPM.innerHTML = `
+          <div class="stats-item"><span class="stats-label">Global RPM Avg:</span> <span class="stats-value">${globalStats.avg.toFixed(1)}</span></div>
+          <div class="stats-item"><span class="stats-label">Max:</span> <span class="stats-value">${globalStats.max}</span></div>
+          <div class="stats-item"><span class="stats-label">Min:</span> <span class="stats-value">${globalStats.min}</span></div>
+        `;
+      } else {
+        globalRPM.textContent = "RPM: N/A";
+      }
     }
 
     function drawHistogram(container, data, tooltip, detailsPanel, detailsContent, globalCutoff) {
