@@ -144,9 +144,11 @@ export class MainAgent extends Agent {
     return `
 ## Output Format
 
-When responding, use the following format:
+When responding, output **only** the sections defined **in the fenced code blocks** below.
 
 ### To link related nodes:
+
+Output a \`[LINKS]\` section as shown in the fenced code block below.
 \`\`\`
 [LINKS]
 node_id_1
@@ -155,6 +157,8 @@ node_id_2
 \`\`\`
 
 ### To update a node's content:
+
+Output an \`[UPDATE:node_id]\` section as shown in the fenced code block below.
 \`\`\`
 [UPDATE:node_id]
 New markdown content for the node...
@@ -162,13 +166,15 @@ New markdown content for the node...
 \`\`\`
 
 ### To respond to the user (optional):
+
+Output a \`[RESPONSE]\` section as shown in the fenced code block below.
 \`\`\`
 [RESPONSE]
 Your response to the user...
 [/RESPONSE]
 \`\`\`
 
-If you have no response for the user, omit the [RESPONSE] section.
+If you have no response for the user, omit the \`[RESPONSE]\` section.
 `.trim();
   }
 }

@@ -45,6 +45,7 @@ export interface ConversationPanelProps {
 
   /** Callback when temperature is changed */
   onTemperatureChange: (temp: number) => void;
+  onClearHistory: () => void;
 }
 
 /**
@@ -95,17 +96,30 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
       <div class="conversation-header">
         <div class="header-title">Conversation</div>
 
-        <label class="streaming-toggle" title="Toggle Real-time Streaming">
-          <input
-            type="checkbox"
-            checked={props.streamingEnabled}
-            onChange={(e) => props.onStreamingToggle(e.currentTarget.checked)}
-            disabled={props.isLoading}
-          />
-          <span>Stream</span>
-        </label>
+        <div class="conversation-controls">
+          {/* Clear button */}
+          <button
+            class="header-btn clear-btn"
+            onClick={() => props.onClearHistory()}
+            title="Clear Conversation History"
+          >
+            Clear
+          </button>
 
-        <div class="model-selection">
+          {/* Streaming toggle */}
+          <label class="streaming-toggle" title="Toggle Real-time Streaming">
+            <input
+              type="checkbox"
+              checked={props.streamingEnabled}
+              onChange={(e) => props.onStreamingToggle(e.currentTarget.checked)}
+              disabled={props.isLoading}
+            />
+            <span>Stream</span>
+          </label>
+        </div>
+
+        <div class="model-settings">
+          {/* Model selection */}
           <select
             value={props.selectedModel}
             onChange={(e) => props.onModelChange(e.currentTarget.value)}
@@ -191,18 +205,64 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
                   {turn.role === 'user' ? 'You' : 'Corkei'}
                 </span>
                 <span class="message-time">
-                  {turn.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })}
+                  {(() => {
+                    // Use first token timestamp for model if available
+                    const baseTime = (turn.role === 'model' && turn.firstTokenTimestamp)
+                      ? turn.firstTokenTimestamp
+                      : turn.timestamp;
+
+                    let timeStr = baseTime.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hourCycle: 'h23'
+                    });
+
+                    // Add durations for each part if it's a model response AND was streaming
+                    if (turn.role === 'model' && turn.firstTokenTimestamp && turn.parts.length > 0) {
+                      const durations = turn.parts
+                        .map(p => p.durationMs !== undefined ? ` + ${(p.durationMs / 1000).toFixed(1)}s` : '')
+                        .filter(s => s !== '')
+                        .join('');
+                      timeStr += durations;
+                    }
+
+                    // Add total response time if available and finished
+                    if (turn.role === 'model' && !turn.isStreaming && turn.responseTime !== undefined) {
+                      timeStr += ` (Σ ${(turn.responseTime / 1000).toFixed(1)}s)`;
+                    }
+
+                    return timeStr;
+                  })()}
                 </span>
               </div>
               <div class="message-content">
-                {turn.content}
+                <For each={turn.parts}>
+                  {(part) => (
+                    <Show
+                      when={part.type === 'thought'}
+                      fallback={<div class="text-part">{part.content}</div>}
+                    >
+                      <details
+                        class="message-thoughts"
+                        open={turn.isStreaming}
+                      >
+                        <summary class="thoughts-header">Thought process</summary>
+                        <div class="thoughts-content">{part.content}</div>
+                      </details>
+                    </Show>
+                  )}
+                </For>
+
+                {/* Inline loading indicator for the current model turn being waited on */}
+                {turn.isStreaming && turn.parts.length === 0 && (
+                  <div class="text-part">
+                    <span class="loading-dots">
+                      <span>.</span><span>.</span><span>.</span>
+                    </span>
+                  </div>
+                )}
               </div>
-              <Show when={turn.thoughts}>
-                <details class="message-thoughts" open={turn.id === 'streaming'}>
-                  <summary class="thoughts-header">Thought process</summary>
-                  <div class="thoughts-content">{turn.thoughts}</div>
-                </details>
-              </Show>
               {turn.relatedNodes.length > 0 && (
                 <div class="message-links">
                   <span class="links-label">Related:</span>
@@ -216,18 +276,6 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
             </div>
           )}
         </For>
-
-        {/* Loading indicator */}
-        {props.isLoading && (
-          <div class="message assistant loading">
-            <div class="message-role">Corkei</div>
-            <div class="message-content">
-              <span class="loading-dots">
-                <span>.</span><span>.</span><span>.</span>
-              </span>
-            </div>
-          </div>
-        )}
 
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />

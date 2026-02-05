@@ -14,6 +14,9 @@ import type {
   ModelProvider,
   AgentConfig,
   ModelStreamChunk,
+  GenerationConfig,
+  Turn,
+  ContentPart,
 } from './types';
 import { generateTextualContext } from './ContextGraph';
 import { ConversationHistory } from './Conversation';
@@ -48,6 +51,11 @@ export abstract class Agent {
     this.graph = graph;
     this.modelProvider = modelProvider;
     this.history = history || new ConversationHistory();
+  }
+
+  /** Gets the agent configuration */
+  public getConfig(): AgentConfig {
+    return this.config;
   }
 
   /**
@@ -85,28 +93,42 @@ export abstract class Agent {
 
     // 2. Build context
     const systemInstruction = this.getSystemInstruction();
-    const recentTurns = this.history.getRecentTurnsForModel(this.recentTurnsCount);
+    const recentTurns = this.history.getRecentTurnsForModel(this.config.maxRecentTurns || 100);
 
-    // 3. Call model
+    // 3. Create a placeholder model turn for waiting indicator
+    const modelTurn = this.history.addTurn('model', []);
+    const turnStartTime = Date.now();
+
+    // 4. Call model
     const result = await this.modelProvider.generate({
       systemInstruction,
       input: recentTurns,
       generationConfig: this.config.generationConfig,
     });
 
-    // 4. Parse the response
-    const parsed = this.parseResponse(result.text);
+    // 5. Parse the response
+    // Concatenate all text parts for parsing structured updates
+    const fullText = result.parts
+      .filter(p => p.type === 'text')
+      .map(p => p.content)
+      .join('');
+    const parsed = this.parseResponse(fullText);
 
-    // 5. Apply updates to graph
+    // 6. Apply updates to graph
     this.applyNodeUpdates(parsed.nodeUpdates);
 
-    // 6. Record model turn with links and thoughts
-    const modelTurn = this.history.addTurn(
-      'model',
-      parsed.response || '',
-      parsed.linkUpdates.map(u => u.nodeId),
-      result.thoughts
-    );
+    // 7. Update model turn with real parts (preserving order and stripping tags)
+    const cleanParts: ContentPart[] = result.parts.map(p => ({
+      ...p,
+      content: p.type === 'text' ? this.stripTags(p.content) : p.content,
+    }));
+
+    this.history.updateTurnParts(modelTurn.id, cleanParts);
+    this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
+    this.history.updateTurnStreaming(modelTurn.id, false);
+    this.history.updateTurnResponseTime(modelTurn.id, Date.now() - turnStartTime);
+    this.history.updateTurnTimestamp(modelTurn.id, new Date());
+    this.history.saveHistory();
 
     return {
       response: parsed.response,
@@ -137,7 +159,11 @@ export abstract class Agent {
   private async *_processTurnStreamInner(userMessage: string): AsyncIterable<{ type: 'text' | 'thought', content: string }> {
     // 2. Build context
     const systemInstruction = this.getSystemInstruction();
-    const recentTurns = this.history.getRecentTurnsForModel(this.recentTurnsCount);
+    const recentTurns = this.history.getRecentTurnsForModel(this.config.maxRecentTurns || 100);
+
+    // 3. Create a placeholder turn IMMEDIATELY for waiting indicator
+    const modelTurn = this.history.addTurn('model', []);
+    const turnStartTime = Date.now();
 
     // 3. Call model stream (fallback to generate if not supported)
     if (!this.modelProvider.generateStream) {
@@ -147,15 +173,24 @@ export abstract class Agent {
         input: recentTurns,
         generationConfig: this.config.generationConfig,
       });
-      const parsed = this.parseResponse(result.text);
+      // Building parts... handled by generate result directly
+      const fullText = result.parts.filter(p => p.type === 'text').map(p => p.content).join('');
+      const parsed = this.parseResponse(fullText);
       this.applyNodeUpdates(parsed.nodeUpdates);
-      this.history.addTurn(
-        'model',
-        parsed.response || '',
-        parsed.linkUpdates.map(u => u.nodeId),
-        result.thoughts
-      );
-      yield { type: 'text', content: parsed.response || '' };
+
+      // Clean parts for history
+      const cleanParts = result.parts.map(p => ({
+        ...p,
+        content: p.type === 'text' ? this.stripTags(p.content) : p.content
+      }));
+
+      // 6. Update model turn with real parts
+      this.history.updateTurnParts(modelTurn.id, cleanParts);
+      this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
+      this.history.updateTurnStreaming(modelTurn.id, false);
+      this.history.updateTurnResponseTime(modelTurn.id, Date.now() - turnStartTime);
+      this.history.updateTurnTimestamp(modelTurn.id, new Date());
+      yield { type: 'text', content: this.stripTags(parsed.response || '') };
       return;
     }
 
@@ -165,32 +200,74 @@ export abstract class Agent {
       generationConfig: this.config.generationConfig,
     });
 
-    let fullText = '';
-    let accumulatedThoughts = '';
+    const parts: ContentPart[] = [];
+    let currentPartIndex = -1;
+    let firstTokenTime: number | null = null;
+    let partStartTime: number = 0;
 
     for await (const chunk of stream) {
-      if (chunk.type === 'text') {
-        fullText += chunk.text;
-        yield { type: 'text', content: chunk.text };
-      } else if (chunk.type === 'thought') {
-        accumulatedThoughts += chunk.text;
-        yield { type: 'thought', content: chunk.text };
+      if (chunk.type === 'text' || chunk.type === 'thought') {
+        const now = Date.now();
+
+        // Mark first token time
+        if (firstTokenTime === null) {
+          firstTokenTime = now;
+          this.history.updateTurnFirstTokenTimestamp(modelTurn.id, new Date(firstTokenTime));
+        }
+
+        const chunkType = chunk.type;
+        const chunkText = chunk.text;
+
+        // Build parts list in order
+        if (currentPartIndex === -1 || parts[currentPartIndex].type !== chunkType) {
+          // Start a new part
+          partStartTime = now;
+          const newPart: ContentPart = {
+            type: chunkType,
+            content: chunkText,
+            durationMs: 0 // Start at 0
+          };
+          parts.push(newPart);
+          currentPartIndex = parts.length - 1;
+        } else {
+          // Append to existing part
+          parts[currentPartIndex].content += chunkText;
+          // Update duration of current part
+          parts[currentPartIndex].durationMs = now - partStartTime;
+        }
+
+        // Push a DEEP CLONE with tags stripped to force Solid reactivity for nested properties
+        this.history.updateTurnParts(modelTurn.id, parts.map(p => ({
+          ...p,
+          content: p.type === 'text' ? this.stripTags(p.content) : p.content
+        })));
+
+        yield { type: chunkType, content: chunkText };
       }
     }
 
-    // 4. Parse the FINAL response
+    // 5. Parse the FINAL answer for graph updates
+    const fullText = parts
+      .filter(p => p.type === 'text')
+      .map(p => p.content)
+      .join('');
     const parsed = this.parseResponse(fullText);
 
-    // 5. Apply updates to graph
+    // 6. Apply updates to graph
     this.applyNodeUpdates(parsed.nodeUpdates);
 
-    // 6. Record model turn with links and thoughts
-    this.history.addTurn(
-      'model',
-      parsed.response || '',
-      parsed.linkUpdates.map(u => u.nodeId),
-      accumulatedThoughts || undefined
-    );
+    // 7. Finalize turn links and save history
+    this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
+
+    // Update parts one last time with FULL cleanup now that streaming is DONE
+    this.history.updateTurnParts(modelTurn.id, parts.map(p => ({
+      ...p,
+      content: p.type === 'text' ? this.stripTags(p.content) : p.content
+    })));
+
+    this.history.updateTurnStreaming(modelTurn.id, false);
+    this.history.updateTurnResponseTime(modelTurn.id, Date.now() - turnStartTime);
+    this.history.saveHistory();
   }
 
   /**
@@ -225,6 +302,21 @@ export abstract class Agent {
         node.metadata.updatedAt = new Date();
       }
     }
+  }
+
+  /**
+   * Strips internal markers like [RESPONSE] and [LINKS] from the text.
+   * This is used for the user-facing history while keeping raw text for context.
+   */
+  protected stripTags(text: string): string {
+    return text
+      .replace(/\[RESPONSE\]/g, '')
+      .replace(/\[\/RESPONSE\]/g, '')
+      // Remove [LINKS] block entirely as it's parsed and hidden from main chat
+      .replace(/\[LINKS\][\s\S]*?\[\/LINKS\]/g, '')
+      .replace(/\[LINKS\]/g, '') // Partial tag during streaming
+      .replace(/\[\/LINKS\]/g, '')
+      .trim();
   }
 
   /**

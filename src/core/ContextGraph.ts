@@ -195,9 +195,7 @@ export function generateTextualContext(
   traverseTree(graph, rootId, (node, depth, isTextChild) => {
     if (isTextChild && node.text) {
       // Add node text with indentation
-      const indent = '  '.repeat(depth);
-      const title = node.metadata.title ? `# ${node.metadata.title}\n` : '';
-      lines.push(`${indent}${title}${node.text}`);
+      lines.push(node.text);
     }
   }, maxDepth);
 

@@ -78,7 +78,6 @@ const Corkei: Component<CorkeiProps> = (props) => {
   const [graph, setGraph] = createSignal<ContextGraph>(createContextGraph());
   const [rootNodeId, setRootNodeId] = createSignal<NodeId>(nodeId('root'));
   const [selectedNodeId, setSelectedNodeId] = createSignal<NodeId | undefined>();
-  const [turns, setTurns] = createSignal<Turn[]>([]);
   const [isLoading, setIsLoading] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
   const [selectedModel, setSelectedModel] = createSignal(DEFAULT_MODEL);
@@ -87,18 +86,14 @@ const Corkei: Component<CorkeiProps> = (props) => {
   const [temperature, setTemperature] = createSignal(1.0);
 
   // Agent instance (initialized on mount or when model changes)
-  let agent: MainAgent | null = null;
-  let conversationHistory: ConversationHistory;
+  const [agent, setAgent] = createSignal<MainAgent | null>(null);
+  const conversationHistory = new ConversationHistory();
 
   // Initialize or re-initialize agent
   const initAgent = () => {
-    if (!conversationHistory) {
-      conversationHistory = new ConversationHistory();
-    }
-
     try {
       const client = new GeminiClient({ model: selectedModel() });
-      agent = new MainAgent(
+      const newAgent = new MainAgent(
         {
           name: 'MainAgent',
           rootNodeId: rootNodeId(),
@@ -107,17 +102,19 @@ const Corkei: Component<CorkeiProps> = (props) => {
             temperature: temperature(),
             thinkingLevel: thinkingLevel(),
           },
+          maxRecentTurns: 100, // Unified limit
         },
         graph(),
         client,
         conversationHistory
       );
+      setAgent(newAgent);
       console.log(`Agent (re)initialized with model: ${selectedModel()}, temperature: ${temperature()}, thinkingLevel: ${thinkingLevel()}`);
     } catch (err) {
       // API key not configured - show demo mode
       setError('Gemini API key not configured. Running in demo mode.');
       console.warn('GeminiClient initialization failed:', err);
-      agent = null;
+      setAgent(null);
     }
   };
 
@@ -129,6 +126,16 @@ const Corkei: Component<CorkeiProps> = (props) => {
     setRootNodeId(demoRootId);
 
     initAgent();
+  });
+
+  // No longer need a createEffect to sync turns, ConversationPanel will read directly.
+
+  // Reactive memo for turns displayed in the UI
+  const turns = createMemo(() => {
+    const activeAgent = agent();
+    if (!activeAgent) return conversationHistory.getRecentTurns(100);
+    const limit = activeAgent.getConfig().maxRecentTurns || 100;
+    return conversationHistory.getRecentTurns(limit);
   });
 
   // Handle model change
@@ -160,27 +167,14 @@ const Corkei: Component<CorkeiProps> = (props) => {
 
   // Handle sending a message
   const handleSendMessage = async (message: string) => {
-    if (!agent) {
-      // Demo mode - just echo the message
-      const userTurn: Turn = {
-        id: `turn_${Date.now()}` as any,
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-        previousTurnId: null,
-        relatedNodes: [],
-      };
+    const activeAgent = agent();
+    if (!activeAgent) {
+      // Demo mode: simulate interactions
+      const userTurnContent = message;
+      const assistantResponse = `This is a demo response to: "${message}". In a real scenario, this would be an AI-generated answer.`;
 
-      const assistantTurn: Turn = {
-        id: `turn_${Date.now() + 1}` as any,
-        role: 'model',
-        content: `[Demo Mode] I received your message: "${message}"\n\nTo enable full functionality, please configure the GEMINI_API_KEY environment variable or add VITE_GEMINI_API_KEY to your .env file.`,
-        timestamp: new Date(),
-        previousTurnId: userTurn.id,
-        relatedNodes: [rootNodeId()],
-      };
-
-      setTurns([...turns(), userTurn, assistantTurn]);
+      conversationHistory.addTurn('user', userTurnContent, [rootNodeId()]);
+      conversationHistory.addTurn('model', assistantResponse, [rootNodeId()]);
       return;
     }
 
@@ -189,10 +183,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
 
     if (streamingEnabled()) {
       try {
-        const stream = agent.processTurnStream(message);
-
-        // Update UI IMMEDIATELY with the user turn that was just added to history
-        setTurns(conversationHistory.getRecentTurns(100));
+        const stream = activeAgent.processTurnStream(message);
 
         let modelContent = '';
         let modelThoughts = '';
@@ -203,49 +194,29 @@ const Corkei: Component<CorkeiProps> = (props) => {
           } else if (chunk.type === 'thought') {
             modelThoughts += chunk.content;
           }
-
-          // Show partial content in the UI
-          const historyTurns = conversationHistory.getRecentTurns(100);
-          setTurns([
-            ...historyTurns,
-            {
-              id: 'streaming' as any,
-              role: 'model',
-              content: modelContent,
-              thoughts: modelThoughts,
-              timestamp: new Date(),
-              previousTurnId: historyTurns[historyTurns.length - 1]?.id || null,
-              relatedNodes: [],
-            }
-          ]);
+          // The ConversationHistory is updated internally by the agent during streaming,
+          // and its listeners are notified, so the UI should react automatically.
         }
 
         // Final update - history now has the real model turn with parsed links
-        setTurns(conversationHistory.getRecentTurns(100));
-        setGraph(new Map(graph()));
+        // No explicit setTurns needed here, as the history is the source of truth.
+        setGraph(new Map(graph())); // Update graph if nodes were added/modified
 
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error processing turn stream:', err);
-        setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setTurns(conversationHistory.getRecentTurns(100));
+        setError(err.message || 'An error occurred during streaming.');
       } finally {
         setIsLoading(false);
       }
     } else { // Non-streaming mode
       try {
         // Start processing (Agent records the turn internally)
-        const processPromise = agent.processTurn(message);
-
-        // Update UI IMMEDIATELY to show the user message
-        setTurns(conversationHistory.getRecentTurns(100));
-
-        await processPromise;
-        setTurns(conversationHistory.getRecentTurns(100));
-        setGraph(new Map(graph()));
-      } catch (err) {
+        await activeAgent.processTurn(message);
+        // No explicit setTurns needed here, as the history is the source of truth.
+        setGraph(new Map(graph())); // Update graph if nodes were added/modified
+      } catch (err: any) {
         console.error('Error processing turn:', err);
-        setError(`Error: ${err instanceof Error ? err.message : 'Unknown error'}`);
-        setTurns(conversationHistory.getRecentTurns(100));
+        setError(err.message || 'An error occurred while communicating with the model.');
       } finally {
         setIsLoading(false);
       }
@@ -260,6 +231,14 @@ const Corkei: Component<CorkeiProps> = (props) => {
   // Dismiss error
   const dismissError = () => {
     setError(null);
+  };
+
+  // Handle clearing history
+  const handleClearHistory = () => {
+    if (confirm('Are you sure to clear the whole conversation history?')) {
+      conversationHistory.clear();
+      // No need for setTurns() as it's a reactive memo from conversationHistory
+    }
   };
 
   return (
@@ -277,6 +256,7 @@ const Corkei: Component<CorkeiProps> = (props) => {
         onStreamingToggle={setStreamingEnabled}
         temperature={temperature()}
         onTemperatureChange={handleTemperatureChange}
+        onClearHistory={handleClearHistory}
       />
 
       {/* Divider */}

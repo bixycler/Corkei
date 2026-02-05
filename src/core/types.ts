@@ -91,10 +91,38 @@ export function turnId(id: string): TurnId {
 }
 
 /**
+ * Types of content parts in a turn.
+ */
+export type ContentPart =
+  | TextPart
+  | ThoughtPart;
+// | ToolCallPart | ToolResultPart (Future)
+
+/**
+ * Basic text message part.
+ */
+export interface TextPart {
+  type: 'text';
+  content: string;
+  /** Duration in milliseconds it took to generate this part */
+  durationMs?: number;
+}
+
+/**
+ * Model reasoning/thought process part.
+ */
+export interface ThoughtPart {
+  type: 'thought';
+  content: string;
+  /** Duration in milliseconds it took to generate this part */
+  durationMs?: number;
+}
+
+/**
  * A single turn in a conversation.
  * 
  * Turns form a linked list (chain) and can reference nodes in the context graph.
- * The conversation history is a thread across various nodes in the tree.
+ * Content is stored as an ordered array of parts to preserve CoT sequence.
  */
 export interface Turn {
   /** Unique identifier for this turn */
@@ -103,8 +131,11 @@ export interface Turn {
   /** Role of the participant (user or assistant) */
   role: TurnRole;
 
-  /** The message content */
-  content: string;
+  /** 
+   * The message content as ordered parts.
+   * Preserves model's original output sequence (e.g., thoughts before answer).
+   */
+  parts: ContentPart[];
 
   /** When this turn occurred */
   timestamp: Date;
@@ -118,8 +149,14 @@ export interface Turn {
    */
   relatedNodes: NodeId[];
 
-  /** Thinking / Reasoning process of the model */
-  thoughts?: string;
+  /** Whether this turn is currently being generated/streamed */
+  isStreaming?: boolean;
+
+  /** When the first token (chunk) of the model response arrived */
+  firstTokenTimestamp?: Date;
+
+  /** Total time in milliseconds from user message to full response */
+  responseTime?: number;
 }
 
 // =============================================================================
@@ -141,6 +178,12 @@ export interface AgentConfig {
 
   /** Optional generation config */
   generationConfig?: GenerationConfig;
+
+  /** 
+   * Number of recent turns to include in context & display.
+   * Default: 100
+   */
+  maxRecentTurns?: number;
 }
 
 /**
@@ -210,18 +253,18 @@ export interface ModelInput {
  */
 export interface ModelTurn {
   role: TurnRole;
-  content: string;
+  parts: ContentPart[];
 }
 
 /**
  * Result from a model generation.
  */
 export interface ModelResult {
-  /** Generated text output */
-  text: string;
-
-  /** Thinking / Reasoning process of the model */
-  thoughts?: string;
+  /** 
+   * The generated content as ordered parts.
+   * Preserves model's original output sequence.
+   */
+  parts: ContentPart[];
 
   /** Token usage statistics */
   usage?: {

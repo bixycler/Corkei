@@ -39,32 +39,34 @@ Abstract layer for AI interactions.
 ### 4. Conversation History
 A chain of `Turn` objects forming a linked list.
 - **Turn**: Represents a single exchange.
-- **Reactivity**: (Proposed) Moving from manual polling to a reactive Store to allow the UI to update automatically.
+- **Reactivity**: Implemented via **SolidJS Store**. Components react to granular updates (e.g., streaming chunks) without full list re-renders.
+- **Persistence**: Automatically synced to `localStorage`. `ConversationHistory` hydrates from storage on initialization, ensuring continuity across sessions.
 
 ## Data Structures
 
 ### Turns and Messages
-Currently, we differentiate between persistent turns and model-ready turns.
+We use an enriched multi-part structure to preserve the exact order of model outputs.
 
 | Type | Purpose | Key Fields |
 | :--- | :--- | :--- |
 | **Turn** | Persistent History | `id`, `role`, `parts: ContentPart[]`, `relatedNodes`, `timestamp` |
-| **ModelTurn** | API DTO | `role`, `parts: ContentPart[]` |
+| **ContentPart** | Message Unit | `type: 'text' | 'thought'`, `content: string` |
 
 > [!IMPORTANT]
-> **Ordered Parts**: To support coherent Chain-of-Thought (CoT), `Turn.parts` must preserve the exact order returned by the model (e.g., `ThoughtPart` before `TextPart`). This ensures the model "sees" its reasoning process before its conclusion in subsequent turns.
-
-> [!IMPORTANT]
-> **Proposed Enrichment**: To support tool use and advanced reasoning (thought signatures), `Turn` should transition to a multi-part structure:
-> - `parts: Array<TextPart | ThoughtPart | ToolCallPart | ToolResultPart>`
+> **Ordered Parts**: To support coherent Chain-of-Thought (CoT), `Turn.parts` preserves the exact sequence returned by the model (e.g., `thought` before `text`). This allows the model to "see" its reasoning in subsequent turns, improving consistency.
 
 ## Process Flow
 
 1.  **User Input**: UI calls `agent.processTurnStream(message)`.
-2.  **Turn Staging**: `Agent` adds a 'user' turn to `ConversationHistory`.
+2.  **Turn Staging**: `Agent` immediately adds a 'user' turn to `ConversationHistory`.
 3.  **Model Call**: `GeminiClient` prepares a stateless request with context + history.
-4.  **Streaming**: UI renders partial chunks in order, appending tokens to the active part or creating new parts as they arrive.
-5.  **Finalization**: `Agent` parses the final text for node updates, applies them to the `ContextGraph`, and commits the sorted parts to the `ConversationHistory`.
+4.  **Streaming & Reactivity**: 
+    - `Agent` generates chunks and updates the `ConversationHistory` store.
+    - SolidJS UI reacts to part changes (dot updates/text growth) in real-time.
+    - To force reactivity for nested properties, `Agent` pushes deep clones of the `parts` array to the store.
+5.  **Finalization & Persistence**:
+    - `Agent` parses final text for node updates and applies them to `ContextGraph`.
+    - `ConversationHistory.saveHistory()` is called at the end of the stream to commit the final state to `localStorage`.
 
 ## Constants and Limits
 

@@ -12,7 +12,7 @@
  */
 
 import { GoogleGenAI } from '@google/genai';
-import type { ModelInput, ModelResult, GenerationConfig, ModelStreamChunk } from './types';
+import type { ModelInput, ModelResult, GenerationConfig, ModelStreamChunk, ContentPart } from './types';
 import { ModelProvider } from './ModelProvider';
 
 /**
@@ -34,7 +34,7 @@ export interface GeminiClientConfig {
  */
 export const SUPPORTED_MODELS: Record<string, { name: string; thinkingLevels: string[]; thinkingBudgets: Record<string, number> }> = {
   //'gemma-3-270m-it': { name: 'Gemma 3 270M', thinkingLevels: [], thinkingBudgets: null }, // Unsupported by Interactions API
-  //'gemma-3-1b-it': { name: 'Gemma 3 1B', thinkingLevels: [], thinkingBudgets: null }, // Too small for agentic workflows
+  'gemma-3-1b-it': { name: 'Gemma 3 1B', thinkingLevels: [], thinkingBudgets: null }, // Too small for agentic workflows
   //'gemma-3-2b-it': { name: 'Gemma 3 2B', thinkingLevels: [], thinkingBudgets: null }, // Unsupported by GenAI API
   'gemma-3-4b-it': { name: 'Gemma 3 4B', thinkingLevels: [], thinkingBudgets: null },
   'gemma-3-12b-it': { name: 'Gemma 3 12B', thinkingLevels: [], thinkingBudgets: null },
@@ -196,7 +196,12 @@ export class GeminiClient extends ModelProvider {
       // Pass conversation history as contents
       contents: input.input.map(turn => ({
         role: turn.role === 'user' ? 'user' : 'model',
-        parts: [{ text: turn.content }],
+        parts: turn.parts.map(p => {
+          if (p.type === 'thought') {
+            return { thought: true, text: p.content };
+          }
+          return { text: p.content };
+        }),
       })),
       config,
     };
@@ -222,40 +227,30 @@ export class GeminiClient extends ModelProvider {
     const result = await this.client.models.generateContent(request);
     console.debug('[GeminiClient.generate()] API response:', result);
 
-    // Extract content and thoughts
+    // Extract content parts in order
     const candidate = result.candidates?.[0];
-    const parts = candidate?.content?.parts || [];
+    const rawParts = candidate?.content?.parts || [];
+    const parts: ContentPart[] = [];
 
-    let text = '';
-    let thoughts = '';
-
-    for (const part of parts) {
+    for (const part of rawParts) {
       const thought = (part as any).thought;
       if (thought) {
         // Handle both thought as string and thought as boolean with text
-        if (typeof thought === 'string') {
-          thoughts += thought;
-        } else if (thought === true && part.text) {
-          thoughts += part.text;
+        const content = typeof thought === 'string' ? thought : (part.text || '');
+        if (content) {
+          parts.push({ type: 'thought', content });
         }
       } else if (part.text) {
-        text += part.text;
+        parts.push({ type: 'text', content: part.text });
       }
     }
-    // Log extracted components
-    if (thoughts) {
-      console.debug('[GeminiClient.generate()] Extracted thoughts:', thoughts);
-    }
-    console.debug('[GeminiClient.generate()] Extracted text:', text);
 
-    const usage = result.usageMetadata;
     return {
-      text,
-      thoughts: thoughts || undefined,
-      usage: usage ? {
-        inputTokens: usage.promptTokenCount || 0,
-        outputTokens: usage.candidatesTokenCount || 0,
-        totalTokens: usage.totalTokenCount || 0,
+      parts,
+      usage: result.usageMetadata ? {
+        inputTokens: result.usageMetadata.promptTokenCount || 0,
+        outputTokens: result.usageMetadata.candidatesTokenCount || 0,
+        totalTokens: result.usageMetadata.totalTokenCount || 0,
       } : undefined,
     };
   }
