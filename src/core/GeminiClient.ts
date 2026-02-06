@@ -43,15 +43,15 @@ export const SUPPORTED_MODELS: Record<string, { name: string; thinkingLevels: st
   'gemini-2.0-flash': { name: 'Gemini 2.0 Flash', thinkingLevels: [], thinkingBudgets: null }, // Paid tier
   'gemini-2.5-flash-lite': {
     name: 'Gemini 2.5 Flash Lite', thinkingLevels: ['none', 'low', 'medium', 'high', 'dynamic'],
-    thinkingBudgets: { 'none': 0, 'low': 1 << 9, 'medium': 12 << 10, 'high': 24 << 10, 'dynamic': -1 }
+    thinkingBudgets: { 'none': NaN, 'low': 1 << 9, 'medium': 12 << 10, 'high': 24 << 10, 'dynamic': -1 }
   },
   'gemini-2.5-flash': {
     name: 'Gemini 2.5 Flash', thinkingLevels: ['none', 'low', 'medium', 'high', 'dynamic'],
     thinkingBudgets: { 'none': 0, 'low': 1 << 9, 'medium': 12 << 10, 'high': 24 << 10, 'dynamic': -1 }
   },
   'gemini-2.5-pro': {
-    name: 'Gemini 2.5 Pro', thinkingLevels: ['none', 'low', 'medium', 'high', 'dynamic'],
-    thinkingBudgets: { 'none': 0, 'low': 1 << 7, 'medium': 16 << 10, 'high': 32 << 10, 'dynamic': -1 }
+    name: 'Gemini 2.5 Pro', thinkingLevels: ['low', 'medium', 'high', 'dynamic'],
+    thinkingBudgets: { 'low': 1 << 7, 'medium': 16 << 10, 'high': 32 << 10, 'dynamic': -1 }
   },
   'gemini-3-flash-preview': {
     name: 'Gemini 3 Flash', thinkingLevels: ['minimal', 'low', 'medium', 'high'],
@@ -180,7 +180,8 @@ export class GeminiClient extends ModelProvider {
       if (!model.thinkingBudgets) {
         config.thinkingConfig.thinkingLevel = generationConfigBase.thinkingLevel;
       } else {
-        config.thinkingConfig.thinkingBudget = model.thinkingBudgets[generationConfigBase.thinkingLevel];
+        const thinkingBudget = model.thinkingBudgets[generationConfigBase.thinkingLevel];
+        if (thinkingBudget || thinkingBudget === 0) config.thinkingConfig.thinkingBudget = thinkingBudget;
       }
     }
 
@@ -191,16 +192,28 @@ export class GeminiClient extends ModelProvider {
       };
     }
 
+    // Pass conversation history as contents
     const request: any = {
       model: this.model,
-      // Pass conversation history as contents
       contents: input.input.map(turn => ({
         role: turn.role === 'user' ? 'user' : 'model',
         parts: turn.parts.map(p => {
+          const part: any = {};
           if (p.type === 'thought') {
-            return { thought: true, text: p.content };
+            //part.text = p.content; part.thought = true;
+            // WORKAROUND: @google/genai seems to strip off parts with { thought: true }.
+            // We use <think>...</think> tags injected to the text content instead.
+            part.text = `<think>\n${p.content}\n</think>`;
+          } else {
+            part.text = p.content;
           }
-          return { text: p.content };
+
+          // Feed back thoughtSignature if present for thought coherence (required by Gemini 3)
+          if (p.metadata?.thoughtSignature) {
+            part.thoughtSignature = p.metadata.thoughtSignature;
+          }
+
+          return part;
         }),
       })),
       config,
@@ -233,15 +246,34 @@ export class GeminiClient extends ModelProvider {
     const parts: ContentPart[] = [];
 
     for (const part of rawParts) {
-      const thought = (part as any).thought;
+      const partAny = part as any;
+      const thought = partAny.thought;
+      // Capture thoughtSignature from part level OR candidate level (Gemini 3 sometimes puts it on candidate metadata)
+      const thoughtSignature = partAny.thoughtSignature || (candidate as any).thoughtSignature;
+
+      const metadata: any = {};
+      if (thoughtSignature) {
+        metadata.thoughtSignature = thoughtSignature;
+      }
+      const hasMetadata = Object.keys(metadata).length > 0;
+
       if (thought) {
         // Handle both thought as string and thought as boolean with text
         const content = typeof thought === 'string' ? thought : (part.text || '');
-        if (content) {
-          parts.push({ type: 'thought', content });
+        // Keep part if it has content OR metadata (coherence requires the signature)
+        if (content || hasMetadata) {
+          parts.push({
+            type: 'thought',
+            content,
+            metadata: hasMetadata ? metadata : undefined
+          });
         }
-      } else if (part.text) {
-        parts.push({ type: 'text', content: part.text });
+      } else if (part.text !== undefined || hasMetadata) {
+        parts.push({
+          type: 'text',
+          content: part.text || '',
+          metadata: hasMetadata ? metadata : undefined
+        });
       }
     }
 
@@ -251,6 +283,9 @@ export class GeminiClient extends ModelProvider {
         inputTokens: result.usageMetadata.promptTokenCount || 0,
         outputTokens: result.usageMetadata.candidatesTokenCount || 0,
         totalTokens: result.usageMetadata.totalTokenCount || 0,
+      } : undefined,
+      metadata: (candidate as any).thoughtSignature ? {
+        thoughtSignature: (candidate as any).thoughtSignature
       } : undefined,
     };
   }
@@ -271,20 +306,44 @@ export class GeminiClient extends ModelProvider {
       const candidate = chunk.candidates?.[0];
       const parts = candidate?.content?.parts || [];
 
+      // Capture thoughtSignature from candidate level (Gemini 3 sometimes puts it here in streaming)
+      const candidateSignature = (candidate as any)?.thoughtSignature;
+
       for (const part of parts) {
-        const thought = (part as any).thought;
+        const partAny = part as any;
+        const thought = partAny.thought;
+        // Capture thoughtSignature from part level OR candidate level
+        const thoughtSignature = partAny.thoughtSignature || candidateSignature;
+
+        const metadata: any = {};
+        if (thoughtSignature) {
+          metadata.thoughtSignature = thoughtSignature;
+        }
+        const hasMetadata = Object.keys(metadata).length > 0;
+
         if (thought) {
           if (typeof thought === 'string') {
             console.debug('[GeminiClient.generateStream()] chunk thought:', thought);
-            yield { type: 'thought', text: thought };
-          } else if (thought === true && part.text) {
+            yield { type: 'thought', text: thought, metadata: hasMetadata ? metadata : undefined };
+          } else if (thought === true) {
             console.debug('[GeminiClient.generateStream()] chunk [thought]:', part.text);
-            yield { type: 'thought', text: part.text };
+            yield { type: 'thought', text: part.text || '', metadata: hasMetadata ? metadata : undefined };
           }
-        } else if (part.text) {
+        } else if (part.text !== undefined || hasMetadata) {
           console.debug('[GeminiClient.generateStream()] chunk text:', part.text);
-          yield { type: 'text', text: part.text };
+          yield { type: 'text', text: part.text || '', metadata: hasMetadata ? metadata : undefined };
         }
+      }
+
+      // If we have a signature but no parts were yielded, yield an empty text chunk with metadata
+      // to ensure the signature is captured by the agent.
+      if (candidateSignature && parts.length === 0) {
+        console.debug('[GeminiClient.generateStream()] chunk metadata-only:', candidateSignature);
+        yield {
+          type: 'text',
+          text: '',
+          metadata: { thoughtSignature: candidateSignature }
+        };
       }
 
       const usage = chunk.usageMetadata;

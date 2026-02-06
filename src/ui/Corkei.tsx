@@ -36,7 +36,7 @@ function createDemoGraph(): { graph: ContextGraph; rootNodeId: NodeId } {
   const root = createNode('root', `
 # Corkei Assistant
 
-You are Corkei, a helpful AI assistant that manages knowledge in a graph structure.
+You are Corkei, a helpful AI assistant that manages knowledge in a graph structure.  
 
 Your primary tasks:
 1. Understand user queries and link them to relevant context nodes

@@ -75,9 +75,9 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
 
   // Handle send button click or Enter key
   const handleSend = () => {
-    const message = inputText().trim();
-    if (message && !props.isLoading) {
-      props.onSendMessage(message);
+    // Allow empty messages for "continue" command
+    if (!props.isLoading) {
+      props.onSendMessage(inputText().trim());
       setInputText('');
     }
   };
@@ -296,7 +296,7 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
         <button
           class="send-button"
           onClick={handleSend}
-          disabled={props.isLoading || !inputText().trim()}
+          disabled={props.isLoading}
         >
           Send
         </button>

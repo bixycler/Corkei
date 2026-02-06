@@ -29,24 +29,24 @@ import { ConversationHistory } from './Conversation';
  * 
  * The model is expected to output in a structured format:
  * 
- * [LINKS]
+ * <links>
  * node_id_1
  * node_id_2
  * 
- * [UPDATE:node_id]
+ * [update:node_id]
  * New content for the node...
- * [/UPDATE]
+ * [/update]
  * 
- * [RESPONSE]
+ * [response]
  * Optional response text to the user...
  */
 const MARKERS = {
-  LINKS_START: '[LINKS]',
-  LINKS_END: '[/LINKS]',
-  UPDATE_START: /\[UPDATE:([^\]]+)\]/,
-  UPDATE_END: '[/UPDATE]',
-  RESPONSE_START: '[RESPONSE]',
-  RESPONSE_END: '[/RESPONSE]',
+  LINKS_START: '<links>',
+  LINKS_END: '</links>',
+  UPDATE_START: /<update id="([^\]]+)">/,
+  UPDATE_END: '</update>',
+  RESPONSE_START: '<response>',
+  RESPONSE_END: '</response>',
 };
 
 /**
@@ -66,18 +66,18 @@ export class MainAgent extends Agent {
    * Parses the model's response to extract structured updates.
    * 
    * Expected format:
-   * [LINKS]
+   * <links>
    * node_id_1
    * node_id_2
-   * [/LINKS]
+   * </links>
    * 
-   * [UPDATE:node_id]
+   * <update id="node_id">
    * New content...
-   * [/UPDATE]
+   * </update>
    * 
-   * [RESPONSE]
+   * <response>
    * Response to user...
-   * [/RESPONSE]
+   * </response>
    */
   protected parseResponse(responseText: string): {
     response?: string;
@@ -88,9 +88,9 @@ export class MainAgent extends Agent {
     const linkUpdates: LinkUpdate[] = [];
     let response: string | undefined;
 
-    // Parse [LINKS] section
+    // Parse <links> section
     const linksMatch = responseText.match(
-      /\[LINKS\]([\s\S]*?)\[\/LINKS\]/
+      /<links>([\s\S]*?)<\/links>/
     );
     if (linksMatch) {
       const linkLines = linksMatch[1].trim().split('\n');
@@ -102,8 +102,8 @@ export class MainAgent extends Agent {
       }
     }
 
-    // Parse [UPDATE:node_id] sections
-    const updateRegex = /\[UPDATE:([^\]]+)\]([\s\S]*?)\[\/UPDATE\]/g;
+    // Parse [update:node_id] sections
+    const updateRegex = /<update id="([^\]]+)">([\s\S]*?)<\/update>/g;
     let updateMatch;
     while ((updateMatch = updateRegex.exec(responseText)) !== null) {
       const id = updateMatch[1].trim();
@@ -114,9 +114,9 @@ export class MainAgent extends Agent {
       });
     }
 
-    // Parse [RESPONSE] section
+    // Parse [response] section
     const responseMatch = responseText.match(
-      /\[RESPONSE\]([\s\S]*?)\[\/RESPONSE\]/
+      /<response>([\s\S]*?)<\/response>/
     );
     if (responseMatch) {
       response = responseMatch[1].trim();
@@ -124,8 +124,8 @@ export class MainAgent extends Agent {
       // If no structured response, check if there's plain text outside markers
       // that could be the response
       let plainText = responseText
-        .replace(/\[LINKS\][\s\S]*?\[\/LINKS\]/g, '')
-        .replace(/\[UPDATE:[^\]]+\][\s\S]*?\[\/UPDATE\]/g, '')
+        .replace(/<links>[\s\S]*?<\/links>/g, '')
+        .replace(/<update id="[^\]]+">[\s\S]*?<\/update>/g, '')
         .trim();
 
       if (plainText) {
@@ -144,37 +144,46 @@ export class MainAgent extends Agent {
     return `
 ## Output Format
 
-When responding, output **only** the sections defined **in the fenced code blocks** below.
+When responding, think carefully with \`<think>\`...\`</think>\` tags to reason and plan your response, then output **only** the sections defined **in the fenced code blocks** below (do not output the triple-backtick fences themselves).
+
+### To think:
+
+**Always think out loud** using \`<think>\` sections as shown in the fenced code block below. There can be multiple \`<think>\` sections interleaved with other sections.
+\`\`\`
+<think>
+Your reasoning and planning process...
+</think>
+\`\`\`
 
 ### To link related nodes:
 
-Output a \`[LINKS]\` section as shown in the fenced code block below.
+Output a \`<links>\` section as shown in the fenced code block below.
 \`\`\`
-[LINKS]
+<links>
 node_id_1
 node_id_2
-[/LINKS]
+</links>
 \`\`\`
 
 ### To update a node's content:
 
-Output an \`[UPDATE:node_id]\` section as shown in the fenced code block below.
+Output an \`<update>\` section for each node you want to update, as shown in the fenced code block below.
 \`\`\`
-[UPDATE:node_id]
-New markdown content for the node...
-[/UPDATE]
+<update id="node_id">
+New markdown content for the node with id="node_id"...
+</update>
 \`\`\`
 
 ### To respond to the user (optional):
 
-Output a \`[RESPONSE]\` section as shown in the fenced code block below.
+Output a \`<response>\` section as shown in the fenced code block below.
 \`\`\`
-[RESPONSE]
+<response>
 Your response to the user...
-[/RESPONSE]
+</response>
 \`\`\`
 
-If you have no response for the user, omit the \`[RESPONSE]\` section.
+If you have no response for the user, omit the \`<response>\` section.
 `.trim();
   }
 }

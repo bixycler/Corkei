@@ -91,6 +91,20 @@ export function turnId(id: string): TurnId {
 }
 
 /**
+ * Model-specific metadata for a content part.
+ */
+export interface ContentPartMetadata {
+  /** 
+   * For Gemini 3 / Gemini 2.0+ Thinking models.
+   * Required for thought coherence across turns.
+   */
+  thoughtSignature?: string;
+
+  /** Allow for other model-specific fields */
+  [key: string]: any;
+}
+
+/**
  * Types of content parts in a turn.
  */
 export type ContentPart =
@@ -106,6 +120,8 @@ export interface TextPart {
   content: string;
   /** Duration in milliseconds it took to generate this part */
   durationMs?: number;
+  /** Model-specific metadata */
+  metadata?: ContentPartMetadata;
 }
 
 /**
@@ -116,6 +132,8 @@ export interface ThoughtPart {
   content: string;
   /** Duration in milliseconds it took to generate this part */
   durationMs?: number;
+  /** Model-specific metadata */
+  metadata?: ContentPartMetadata;
 }
 
 /**
@@ -157,6 +175,9 @@ export interface Turn {
 
   /** Total time in milliseconds from user message to full response */
   responseTime?: number;
+
+  /** Model-specific metadata for the turn */
+  metadata?: ModelTurnMetadata;
 }
 
 // =============================================================================
@@ -249,11 +270,21 @@ export interface ModelInput {
 }
 
 /**
+ * Model-specific metadata for a conversation turn.
+ */
+export interface ModelTurnMetadata {
+  /** Allow for model-specific fields at turn level */
+  [key: string]: any;
+}
+
+/**
  * A turn in the model input format.
  */
 export interface ModelTurn {
   role: TurnRole;
   parts: ContentPart[];
+  /** Model-specific metadata for the turn */
+  metadata?: ModelTurnMetadata;
 }
 
 /**
@@ -272,14 +303,17 @@ export interface ModelResult {
     outputTokens: number;
     totalTokens: number;
   };
+
+  /** Model-specific metadata for the entire generation */
+  metadata?: ModelTurnMetadata;
 }
 
 /**
  * A chunk of a model streaming response.
  */
 export type ModelStreamChunk =
-  | { type: 'text'; text: string }
-  | { type: 'thought'; text: string }
+  | { type: 'text'; text: string; metadata?: ContentPartMetadata }
+  | { type: 'thought'; text: string; metadata?: ContentPartMetadata }
   | { type: 'usage'; usage: ModelResult['usage'] };
 
 /**

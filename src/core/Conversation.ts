@@ -153,6 +153,7 @@ export class ConversationHistory {
     return this.getRecentTurns(n).map(turn => ({
       role: turn.role,
       parts: turn.parts,
+      metadata: turn.metadata,
     }));
   }
 
@@ -231,6 +232,13 @@ export class ConversationHistory {
    */
   updateTurnParts(id: TurnId, parts: ContentPart[]): void {
     this.setState('turns', id as string, 'parts', parts);
+  }
+
+  /**
+   * Updates model-specific metadata for a turn.
+   */
+  updateTurnMetadata(id: TurnId, metadata: any): void {
+    this.setState('turns', id as string, 'metadata', metadata);
   }
 
   /** Explicitly save to storage */

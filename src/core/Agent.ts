@@ -88,8 +88,11 @@ export abstract class Agent {
    * @returns The turn result with response and updates
    */
   async processTurn(userMessage: string): Promise<TurnResult> {
-    // 1. Record user turn
-    const userTurn = this.history.addTurn('user', userMessage);
+    // 1. Record user turn (skip if empty, effectively a "continue" command)
+    const isContinue = !userMessage.trim();
+    if (!isContinue) {
+      this.history.addTurn('user', userMessage);
+    }
 
     // 2. Build context
     const systemInstruction = this.getSystemInstruction();
@@ -117,13 +120,18 @@ export abstract class Agent {
     // 6. Apply updates to graph
     this.applyNodeUpdates(parsed.nodeUpdates);
 
-    // 7. Update model turn with real parts (preserving order and stripping tags)
-    const cleanParts: ContentPart[] = result.parts.map(p => ({
+    // 7. Update model turn with real parts (preserving order, splitting thoughts, and stripping tags)
+    const rawCleanParts: ContentPart[] = result.parts.map(p => ({
       ...p,
       content: p.type === 'text' ? this.stripTags(p.content) : p.content,
+      metadata: p.metadata,
     }));
+    const cleanParts = this.splitThoughtParts(rawCleanParts);
 
     this.history.updateTurnParts(modelTurn.id, cleanParts);
+    if (result.metadata) {
+      this.history.updateTurnMetadata(modelTurn.id, result.metadata);
+    }
     this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
     this.history.updateTurnStreaming(modelTurn.id, false);
     this.history.updateTurnResponseTime(modelTurn.id, Date.now() - turnStartTime);
@@ -146,8 +154,10 @@ export abstract class Agent {
    */
   processTurnStream(userMessage: string): AsyncIterable<{ type: 'text' | 'thought', content: string }> {
     // 1. Record user turn IMMEDIATELY (sync)
-    // This allows the UI to show the user message without waiting for the streaming to start
-    this.history.addTurn('user', userMessage);
+    // Skip if empty, effectively a "continue" command
+    if (userMessage.trim()) {
+      this.history.addTurn('user', userMessage);
+    }
 
     // Return the generator that will handle the model interaction
     return this._processTurnStreamInner(userMessage);
@@ -178,11 +188,13 @@ export abstract class Agent {
       const parsed = this.parseResponse(fullText);
       this.applyNodeUpdates(parsed.nodeUpdates);
 
-      // Clean parts for history
-      const cleanParts = result.parts.map(p => ({
+      // Clean parts for history (splitting thoughts and stripping tags)
+      const rawCleanParts = result.parts.map(p => ({
         ...p,
-        content: p.type === 'text' ? this.stripTags(p.content) : p.content
+        content: p.type === 'text' ? this.stripTags(p.content) : p.content,
+        metadata: p.metadata
       }));
+      const cleanParts = this.splitThoughtParts(rawCleanParts);
 
       // 6. Update model turn with real parts
       this.history.updateTurnParts(modelTurn.id, cleanParts);
@@ -225,7 +237,8 @@ export abstract class Agent {
           const newPart: ContentPart = {
             type: chunkType,
             content: chunkText,
-            durationMs: 0 // Start at 0
+            durationMs: 0, // Start at 0
+            metadata: chunk.metadata,
           };
           parts.push(newPart);
           currentPartIndex = parts.length - 1;
@@ -234,13 +247,31 @@ export abstract class Agent {
           parts[currentPartIndex].content += chunkText;
           // Update duration of current part
           parts[currentPartIndex].durationMs = now - partStartTime;
+
+          // Update metadata if it arrived in a later chunk (specifically for thoughtSignature)
+          if (chunk.metadata) {
+            parts[currentPartIndex].metadata = {
+              ...(parts[currentPartIndex].metadata || {}),
+              ...chunk.metadata
+            };
+          }
+        }
+
+        // Also sync to turn-level metadata for things like thoughtSignature that apply to the whole turn
+        if (chunk.metadata?.thoughtSignature) {
+          this.history.updateTurnMetadata(modelTurn.id, {
+            ...((modelTurn.metadata as any) || {}),
+            thoughtSignature: chunk.metadata.thoughtSignature
+          });
         }
 
         // Push a DEEP CLONE with tags stripped to force Solid reactivity for nested properties
-        this.history.updateTurnParts(modelTurn.id, parts.map(p => ({
+        // We also split thoughts here to ensure they fold correctly during streaming
+        const rawCleanParts = parts.map(p => ({
           ...p,
           content: p.type === 'text' ? this.stripTags(p.content) : p.content
-        })));
+        }));
+        this.history.updateTurnParts(modelTurn.id, this.splitThoughtParts(rawCleanParts));
 
         yield { type: chunkType, content: chunkText };
       }
@@ -260,10 +291,11 @@ export abstract class Agent {
     this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
 
     // Update parts one last time with FULL cleanup now that streaming is DONE
-    this.history.updateTurnParts(modelTurn.id, parts.map(p => ({
+    const rawFinalParts = parts.map(p => ({
       ...p,
       content: p.type === 'text' ? this.stripTags(p.content) : p.content
-    })));
+    }));
+    this.history.updateTurnParts(modelTurn.id, this.splitThoughtParts(rawFinalParts));
 
     this.history.updateTurnStreaming(modelTurn.id, false);
     this.history.updateTurnResponseTime(modelTurn.id, Date.now() - turnStartTime);
@@ -305,18 +337,65 @@ export abstract class Agent {
   }
 
   /**
-   * Strips internal markers like [RESPONSE] and [LINKS] from the text.
+   * Strips internal markers like <response> and <links> from the text.
    * This is used for the user-facing history while keeping raw text for context.
    */
   protected stripTags(text: string): string {
     return text
-      .replace(/\[RESPONSE\]/g, '')
-      .replace(/\[\/RESPONSE\]/g, '')
-      // Remove [LINKS] block entirely as it's parsed and hidden from main chat
-      .replace(/\[LINKS\][\s\S]*?\[\/LINKS\]/g, '')
-      .replace(/\[LINKS\]/g, '') // Partial tag during streaming
-      .replace(/\[\/LINKS\]/g, '')
+      .replace(/<response>/g, '')
+      .replace(/<\/response>/g, '')
+      // Remove <links> block entirely as it is parsed into metadata
+      .replace(/<links>[\s\S]*?<\/links>/g, '')
+      .replace(/<links>/g, '')
+      .replace(/<\/links>/g, '')
       .trim();
+  }
+
+  /**
+   * Splits text parts containing <think>...</think> tags into separate ThoughtParts.
+   * Handles both completed tags and open tags at the end of the string (for streaming).
+   */
+  protected splitThoughtParts(parts: ContentPart[]): ContentPart[] {
+    const result: ContentPart[] = [];
+    for (const part of parts) {
+      if (part.type === 'text') {
+        const regex = /<think>([\s\S]*?)(?:<\/think>|$)/g;
+        let lastIndex = 0;
+        let match;
+        let found = false;
+
+        while ((match = regex.exec(part.content)) !== null) {
+          found = true;
+          const before = part.content.slice(lastIndex, match.index);
+          if (before.trim()) {
+            result.push({ type: 'text', content: before.trim(), metadata: part.metadata });
+          }
+
+          const thoughtContent = match[1].trim();
+          if (thoughtContent || !match[0].endsWith('</think>')) {
+            result.push({ type: 'thought', content: thoughtContent, metadata: part.metadata });
+          }
+
+          lastIndex = regex.lastIndex;
+          // If the tag was not closed, it means the rest of the string is the thought
+          if (!match[0].endsWith('</think>')) {
+            break;
+          }
+        }
+
+        if (!found) {
+          result.push(part);
+        } else {
+          const after = part.content.slice(lastIndex);
+          if (after.trim()) {
+            result.push({ type: 'text', content: after.trim(), metadata: part.metadata });
+          }
+        }
+      } else {
+        result.push(part);
+      }
+    }
+    return result;
   }
 
   /**
