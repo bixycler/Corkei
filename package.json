@@ -19,7 +19,8 @@
     "jjsontree.js": "^4.7.1",
     "solid-js": "^1.9.9",
     "solid-motion": "^1.0.0-alpha.8",
-    "solid-motionone": "^1.0.4"
+    "solid-motionone": "^1.0.4",
+    "zod-to-json-schema": "^3.25.1"
   },
   "devDependencies": {
     "@types/d3": "^7.4.3",

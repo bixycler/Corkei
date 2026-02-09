@@ -13,7 +13,9 @@
 
 import { GoogleGenAI } from '@google/genai';
 import type { ModelInput, ModelResult, GenerationConfig, ModelStreamChunk, ContentPart } from './types';
+import { ResponseSchema } from './types';
 import { ModelProvider } from './ModelProvider';
+import zodToJsonSchema from 'zod-to-json-schema';
 
 /**
  * Configuration for the Gemini client.
@@ -192,6 +194,12 @@ export class GeminiClient extends ModelProvider {
       };
     }
 
+    // Use JSON schema for structured output (not for Gemma models)
+    if (!this.isGemma()) {
+      config.responseMimeType = 'application/json';
+      config.responseSchema = zodToJsonSchema(ResponseSchema as any);
+    }
+
     // Pass conversation history as contents
     const request: any = {
       model: this.model,
@@ -200,12 +208,16 @@ export class GeminiClient extends ModelProvider {
         parts: turn.parts.map(p => {
           const part: any = {};
           if (p.type === 'thought') {
-            //part.text = p.content; part.thought = true;
             // WORKAROUND: @google/genai seems to strip off parts with { thought: true }.
             // We use <think>...</think> tags injected to the text content instead.
             part.text = `<think>\n${p.content}\n</think>`;
-          } else {
+          } else if (p.type === 'text') {
             part.text = p.content;
+          } else if (p.type === 'tool_call') {
+            // Tool calls are handled separately by the API
+            part.functionCall = { name: p.toolCall.name, args: p.toolCall.args };
+          } else if (p.type === 'tool_result') {
+            part.functionResponse = { name: p.toolCallId, response: p.result };
           }
 
           // Feed back thoughtSignature if present for thought coherence (required by Gemini 3)

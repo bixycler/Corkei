@@ -241,14 +241,18 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
                   {(part) => (
                     <Show
                       when={part.type === 'thought'}
-                      fallback={<div class="text-part">{part.content}</div>}
+                      fallback={
+                        <Show when={part.type === 'text'} fallback={<div class="text-part">[Tool: {(part as any).toolCall?.name || (part as any).toolCallId}]</div>}>
+                          <div class="text-part">{(part as any).content}</div>
+                        </Show>
+                      }
                     >
                       <details
                         class="message-thoughts"
                         open={turn.isStreaming}
                       >
                         <summary class="thoughts-header">Thought process</summary>
-                        <div class="thoughts-content">{part.content}</div>
+                        <div class="thoughts-content">{(part as any).content}</div>
                       </details>
                     </Show>
                   )}

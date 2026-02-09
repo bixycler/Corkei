@@ -23,31 +23,7 @@ import type {
 import { nodeId } from './types';
 import { Agent } from './Agent';
 import { ConversationHistory } from './Conversation';
-
-/**
- * Response format markers for parsing model output.
- * 
- * The model is expected to output in a structured format:
- * 
- * <links>
- * node_id_1
- * node_id_2
- * 
- * [update:node_id]
- * New content for the node...
- * [/update]
- * 
- * [response]
- * Optional response text to the user...
- */
-const MARKERS = {
-  LINKS_START: '<links>',
-  LINKS_END: '</links>',
-  UPDATE_START: /<update id="([^\]]+)">/,
-  UPDATE_END: '</update>',
-  RESPONSE_START: '<response>',
-  RESPONSE_END: '</response>',
-};
+import { parse } from 'best-effort-json-parser';
 
 /**
  * MainAgent - The primary orchestrator agent.
@@ -65,21 +41,16 @@ export class MainAgent extends Agent {
   /**
    * Parses the model's response to extract structured updates.
    * 
-   * Expected format:
-   * <links>
-   * node_id_1
-   * node_id_2
-   * </links>
-   * 
-   * <update id="node_id">
-   * New content...
-   * </update>
-   * 
-   * <response>
-   * Response to user...
-   * </response>
+   * Expected JSON format:
+   * {
+   *   "thought": "Thinking about this...",
+   *   "response": "Response to user...",
+   *   "links": ["node_id_1", "node_id_2"],
+   *   "updates": [{"id": "node_id", "text": "New content..."}]
+   * }
    */
   protected parseResponse(responseText: string): {
+    thought?: string;
     response?: string;
     nodeUpdates: NodeUpdate[];
     linkUpdates: LinkUpdate[];
@@ -87,103 +58,81 @@ export class MainAgent extends Agent {
     const nodeUpdates: NodeUpdate[] = [];
     const linkUpdates: LinkUpdate[] = [];
     let response: string | undefined;
+    let thought: string | undefined;
 
-    // Parse <links> section
-    const linksMatch = responseText.match(
-      /<links>([\s\S]*?)<\/links>/
-    );
-    if (linksMatch) {
-      const linkLines = linksMatch[1].trim().split('\n');
-      for (const line of linkLines) {
-        const trimmed = line.trim();
-        if (trimmed) {
-          linkUpdates.push({ nodeId: nodeId(trimmed) });
+    if (!responseText.trim()) {
+      return { thought, response, nodeUpdates, linkUpdates };
+    }
+
+    const jsonText = this.stripCodeFences(responseText);
+
+    try {
+      // Use best-effort-json-parser for streaming compatibility
+      const parsed = parse(jsonText);
+
+      // Extract thought
+      if (parsed.thought) {
+        thought = String(parsed.thought);
+      }
+
+      // Extract response
+      if (parsed.response) {
+        response = String(parsed.response);
+      }
+
+      // Extract links
+      if (Array.isArray(parsed.links)) {
+        for (const link of parsed.links) {
+          if (link) {
+            linkUpdates.push({ nodeId: nodeId(String(link)) });
+          }
         }
       }
-    }
 
-    // Parse [update:node_id] sections
-    const updateRegex = /<update id="([^\]]+)">([\s\S]*?)<\/update>/g;
-    let updateMatch;
-    while ((updateMatch = updateRegex.exec(responseText)) !== null) {
-      const id = updateMatch[1].trim();
-      const content = updateMatch[2].trim();
-      nodeUpdates.push({
-        nodeId: nodeId(id),
-        newText: content,
-      });
-    }
-
-    // Parse [response] section
-    const responseMatch = responseText.match(
-      /<response>([\s\S]*?)<\/response>/
-    );
-    if (responseMatch) {
-      response = responseMatch[1].trim();
-    } else {
-      // If no structured response, check if there's plain text outside markers
-      // that could be the response
-      let plainText = responseText
-        .replace(/<links>[\s\S]*?<\/links>/g, '')
-        .replace(/<update id="[^\]]+">[\s\S]*?<\/update>/g, '')
-        .trim();
-
-      if (plainText) {
-        response = plainText;
+      // Extract node updates
+      if (Array.isArray(parsed.updates)) {
+        for (const update of parsed.updates) {
+          if (update?.id && update?.text) {
+            nodeUpdates.push({
+              nodeId: nodeId(String(update.id)),
+              newText: String(update.text),
+            });
+          }
+        }
       }
+    } catch (err) {
+      // Fallback: treat entire text as response if JSON parsing fails
+      console.warn('[MainAgent] Failed to parse JSON response, using as plain text:', err);
+      response = jsonText;
     }
 
-    return { response, nodeUpdates, linkUpdates };
+    return { thought, response, nodeUpdates, linkUpdates };
   }
 
   /**
    * Gets the expected output format description for the system instruction.
-   * This can be appended to the root node text to guide the model.
    */
   static getOutputFormatInstructions(): string {
     return `
 ## Output Format
 
-When responding, think carefully with \`<think>\`...\`</think>\` tags to reason and plan your response, then output **only** the sections defined **in the fenced code blocks** below (do not output the triple-backtick fences themselves).
+Respond with a JSON object containing any combination of these fields:
 
-### To think:
-
-**Always think out loud** using \`<think>\` sections as shown in the fenced code block below. There can be multiple \`<think>\` sections interleaved with other sections.
-\`\`\`
-<think>
-Your reasoning and planning process...
-</think>
-\`\`\`
-
-### To link related nodes:
-
-Output a \`<links>\` section as shown in the fenced code block below.
-\`\`\`
-<links>
-node_id_1
-node_id_2
-</links>
+\`\`\`json
+{
+  "thought": "Your reasoning and planning process",
+  "response": "Your verbal response to the user",
+  "links": ["node_id_1", "node_id_2"],
+  "updates": [{"id": "node_id", "text": "New content..."}]
+}
 \`\`\`
 
-### To update a node's content:
-
-Output an \`<update>\` section for each node you want to update, as shown in the fenced code block below.
-\`\`\`
-<update id="node_id">
-New markdown content for the node with id="node_id"...
-</update>
-\`\`\`
-
-### To respond to the user (optional):
-
-Output a \`<response>\` section as shown in the fenced code block below.
-\`\`\`
-<response>
-Your response to the user...
-</response>
-\`\`\`
-
-If you have no response for the user, omit the \`<response>\` section.
+Notes:
+- All fields are optional. Only include what's needed
+- \`thought\`: Your thinking process including reasoning, planning, and any other internal monologue (for your own consistency)
+- \`response\`: Your response to the user
+- \`links\`: Node IDs related to this turn
+- \`updates\`: Node content updates with \`id\` and \`text\`
 `.trim();
   }
 }

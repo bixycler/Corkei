@@ -62,10 +62,17 @@ export class ConversationHistory {
             firstTokenTimestamp: (turn as any).firstTokenTimestamp ? new Date((turn as any).firstTokenTimestamp) : undefined,
           };
         }
+
         this.setState({
           turns: hydratedTurns,
           latestTurnId: parsed.latestTurnId,
         });
+
+        const turnCount = Object.keys(hydratedTurns).length;
+        console.info(`[ConversationHistory] Loaded ${turnCount} turns from localStorage, with latest turn ID ${parsed.latestTurnId}:`, parsed);
+        if (parsed.latestTurnId && !hydratedTurns[parsed.latestTurnId]) {
+          console.warn(`[ConversationHistory] Latest turn ID ${parsed.latestTurnId} not found in loaded turns!`);
+        }
       }
     } catch (err) {
       console.warn('[ConversationHistory] Failed to load from storage:', err);
@@ -122,6 +129,51 @@ export class ConversationHistory {
   }
 
   /**
+   * Removes a turn from the conversation.
+   * 
+   * @param id - ID of the turn to remove
+   */
+  removeTurn(id: TurnId): void {
+    this.setState(produce((s: any) => {
+      const turn = s.turns[id as string];
+      if (!turn) return;
+
+      // Update the chain: find turn pointing to this one
+      const turns = Object.values(s.turns) as Turn[];
+      const child = turns.find(t => t.previousTurnId === id);
+      if (child) {
+        child.previousTurnId = turn.previousTurnId;
+      }
+
+      // Update latestTurnId if we're removing the head
+      if (s.latestTurnId === id) {
+        s.latestTurnId = turn.previousTurnId;
+      }
+
+      delete s.turns[id as string];
+    }));
+    this.saveToStorage();
+  }
+
+  /**
+   * Removes any empty turns from the end of the conversation.
+   * Useful for retrying failed turns.
+   */
+  removeEmptyTurns(): void {
+    let currentId = this.state.latestTurnId;
+    while (currentId) {
+      const turn = this.state.turns[currentId as string];
+      if (!turn || turn.parts.length > 0) break;
+
+      // It's an empty turn, remove it and continue backwards
+      const prevId = turn.previousTurnId;
+      this.removeTurn(currentId);
+      console.debug(`[ConversationHistory] Removed empty turn #${currentId}`, turn);
+      currentId = prevId;
+    }
+  }
+
+  /**
    * Gets the most recent N turns for the AI model.
    * This is a reactive read from the store.
    * 
@@ -135,7 +187,10 @@ export class ConversationHistory {
     // Walk backwards through the chain
     while (currentId && result.length < n) {
       const turn = this.state.turns[currentId as string];
-      if (!turn) break;
+      if (!turn) {
+        console.warn(`[ConversationHistory] Turn not found for ID: ${currentId}`);
+        break;
+      }
       result.unshift(turn); // Add to front to maintain order
       currentId = turn.previousTurnId;
     }

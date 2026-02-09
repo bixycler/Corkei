@@ -109,8 +109,9 @@ export interface ContentPartMetadata {
  */
 export type ContentPart =
   | TextPart
-  | ThoughtPart;
-// | ToolCallPart | ToolResultPart (Future)
+  | ThoughtPart
+  | ToolCallPart
+  | ToolResultPart;
 
 /**
  * Basic text message part.
@@ -131,6 +132,43 @@ export interface ThoughtPart {
   type: 'thought';
   content: string;
   /** Duration in milliseconds it took to generate this part */
+  durationMs?: number;
+  /** Model-specific metadata */
+  metadata?: ContentPartMetadata;
+}
+
+/**
+ * A tool/function call requested by the model.
+ */
+export interface ToolCall {
+  /** Tool/function name */
+  name: string;
+  /** Arguments for the tool */
+  args: Record<string, any>;
+  /** Optional ID for matching results */
+  id?: string;
+}
+
+/**
+ * A tool call part in the conversation.
+ */
+export interface ToolCallPart {
+  type: 'tool_call';
+  toolCall: ToolCall;
+  /** Duration in milliseconds (if timed) */
+  durationMs?: number;
+  /** Model-specific metadata */
+  metadata?: ContentPartMetadata;
+}
+
+/**
+ * Result of a tool call execution.
+ */
+export interface ToolResultPart {
+  type: 'tool_result';
+  toolCallId: string;
+  result: any;
+  /** Duration in milliseconds (if timed) */
   durationMs?: number;
   /** Model-specific metadata */
   metadata?: ContentPartMetadata;
@@ -327,3 +365,29 @@ export interface ModelProvider {
   /** Generate a streaming response */
   generateStream?(input: ModelInput): AsyncIterable<ModelStreamChunk>;
 }
+
+// =============================================================================
+// Response Schema (Zod)
+// =============================================================================
+
+import { z } from 'zod/v3';
+
+/**
+ * Schema for structured model responses.
+ * Used with Gemini's responseJsonSchema for enforced JSON output.
+ */
+export const ResponseSchema = z.object({
+  /** Model's thinking process */
+  thought: z.string().optional(),
+  /** Response to the user */
+  response: z.string().optional(),
+  /** Related node IDs */
+  links: z.array(z.string()).optional(),
+  /** Node updates */
+  updates: z.array(z.object({
+    id: z.string(),
+    text: z.string(),
+  })).optional(),
+});
+
+export type ResponseOutput = z.infer<typeof ResponseSchema>;

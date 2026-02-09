@@ -62,7 +62,9 @@ This node contains general knowledge and facts.
   const tasks = createNode('tasks', `
 # Tasks
 
-Current tasks and to-do items.
+- [x] Implement Corkei core logic
+- [x] Implement Corkei UI
+- [ ] Use \`idb\' instead of \'localStorage\' for persistence
 `.trim(), 'Tasks');
   addNode(graph, tasks);
   addChildToNode(graph, rootId, tasksId);
@@ -133,9 +135,11 @@ const Corkei: Component<CorkeiProps> = (props) => {
   // Reactive memo for turns displayed in the UI
   const turns = createMemo(() => {
     const activeAgent = agent();
-    if (!activeAgent) return conversationHistory.getRecentTurns(100);
-    const limit = activeAgent.getConfig().maxRecentTurns || 100;
-    return conversationHistory.getRecentTurns(limit);
+    const limit = activeAgent?.getConfig().maxRecentTurns || 100;
+    const historyTurns = conversationHistory.getRecentTurns(limit);
+    // DON'T remove this debug log: we'll usually need it to check UI reactivity
+    //console.debug(`[Corkei] turns memo updated: ${historyTurns.length} turns`, JSON.parse(JSON.stringify(historyTurns))); // must parse to json to avoid proxy issues
+    return historyTurns;
   });
 
   // Handle model change
