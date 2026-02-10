@@ -382,6 +382,46 @@
   color: #e0e0e0;
 }
 
+/* Tool calls and results */
+.tool-call-part {
+  background: #252535;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-left: 3px solid #66f;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.tool-result-part {
+  background: #203020;
+  margin: 8px 0 12px 0;
+  padding: 8px 12px;
+  border-left: 3px solid #4a4;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.tool-icon,
+.result-icon {
+  margin-right: 8px;
+}
+
+.tool-name {
+  font-weight: 600;
+  color: #acf;
+}
+
+.tool-args {
+  color: #888;
+  margin-left: 4px;
+}
+
+.result-content {
+  color: #afa;
+}
+
 .links-label {
   opacity: 0.6;
   margin-right: 4px;

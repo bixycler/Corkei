@@ -194,8 +194,8 @@ export function generateTextualContext(
 
   traverseTree(graph, rootId, (node, depth, isTextChild) => {
     if (isTextChild && node.text) {
-      // Add node text with indentation
-      lines.push(node.text);
+      // Add node ID and text
+      lines.push(`<meta id="${node.id}">\n${node.text}`);
     }
   }, maxDepth);
 

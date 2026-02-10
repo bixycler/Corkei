@@ -5,7 +5,7 @@
  * and provides an input field for new messages.
  */
 
-import { type Component, For, createSignal, createEffect, Show, createMemo } from 'solid-js';
+import { type Component, For, createSignal, createEffect, Show, createMemo, Switch, Match } from 'solid-js';
 import type { Turn, GenerationConfig } from '../core/types';
 import { SUPPORTED_MODELS } from '../core/GeminiClient';
 import * as d3 from 'd3';
@@ -239,22 +239,33 @@ const ConversationPanel: Component<ConversationPanelProps> = (props) => {
               <div class="message-content">
                 <For each={turn.parts}>
                   {(part) => (
-                    <Show
-                      when={part.type === 'thought'}
-                      fallback={
-                        <Show when={part.type === 'text'} fallback={<div class="text-part">[Tool: {(part as any).toolCall?.name || (part as any).toolCallId}]</div>}>
-                          <div class="text-part">{(part as any).content}</div>
-                        </Show>
-                      }
-                    >
-                      <details
-                        class="message-thoughts"
-                        open={turn.isStreaming}
-                      >
-                        <summary class="thoughts-header">Thought process</summary>
-                        <div class="thoughts-content">{(part as any).content}</div>
-                      </details>
-                    </Show>
+                    <Switch>
+                      <Match when={part.type === 'thought'}>
+                        <details
+                          class="message-thoughts"
+                          open={turn.isStreaming}
+                        >
+                          <summary class="thoughts-header">Thought process</summary>
+                          <div class="thoughts-content">{(part as any).content}</div>
+                        </details>
+                      </Match>
+                      <Match when={part.type === 'text'}>
+                        <div class="text-part">{(part as any).content}</div>
+                      </Match>
+                      <Match when={part.type === 'tool_call'}>
+                        <div class="tool-call-part">
+                          <span class="tool-icon">🛠️</span>
+                          <span class="tool-name">{(part as any).toolCall.name}</span>
+                          <span class="tool-args">({JSON.stringify((part as any).toolCall.args)})</span>
+                        </div>
+                      </Match>
+                      <Match when={part.type === 'tool_result'}>
+                        <div class="tool-result-part">
+                          <span class="result-icon">✅</span>
+                          <span class="result-content">{String((part as any).result)}</span>
+                        </div>
+                      </Match>
+                    </Switch>
                   )}
                 </For>
 

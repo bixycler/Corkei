@@ -352,6 +352,7 @@ export interface ModelResult {
 export type ModelStreamChunk =
   | { type: 'text'; text: string; metadata?: ContentPartMetadata }
   | { type: 'thought'; text: string; metadata?: ContentPartMetadata }
+  | { type: 'tool_call'; toolCall: ToolCall; metadata?: ContentPartMetadata }
   | { type: 'usage'; usage: ModelResult['usage'] };
 
 /**
@@ -383,11 +384,6 @@ export const ResponseSchema = z.object({
   response: z.string().optional(),
   /** Related node IDs */
   links: z.array(z.string()).optional(),
-  /** Node updates */
-  updates: z.array(z.object({
-    id: z.string(),
-    text: z.string(),
-  })).optional(),
 });
 
 export type ResponseOutput = z.infer<typeof ResponseSchema>;

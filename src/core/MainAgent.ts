@@ -89,17 +89,7 @@ export class MainAgent extends Agent {
         }
       }
 
-      // Extract node updates
-      if (Array.isArray(parsed.updates)) {
-        for (const update of parsed.updates) {
-          if (update?.id && update?.text) {
-            nodeUpdates.push({
-              nodeId: nodeId(String(update.id)),
-              newText: String(update.text),
-            });
-          }
-        }
-      }
+      return { thought, response, nodeUpdates, linkUpdates };
     } catch (err) {
       // Fallback: treat entire text as response if JSON parsing fails
       console.warn('[MainAgent] Failed to parse JSON response, using as plain text:', err);
@@ -122,8 +112,7 @@ Respond with a JSON object containing any combination of these fields:
 {
   "thought": "Your reasoning and planning process",
   "response": "Your verbal response to the user",
-  "links": ["node_id_1", "node_id_2"],
-  "updates": [{"id": "node_id", "text": "New content..."}]
+  "links": ["node_id_1", "node_id_2"]
 }
 \`\`\`
 
@@ -132,7 +121,10 @@ Notes:
 - \`thought\`: Your thinking process including reasoning, planning, and any other internal monologue (for your own consistency)
 - \`response\`: Your response to the user
 - \`links\`: Node IDs related to this turn
-- \`updates\`: Node content updates with \`id\` and \`text\`
+
+## Graph Updates
+
+To update the context graph, use the \`updateNodeText(id, text)\` tool call. You can call it multiple times if needed.
 `.trim();
   }
 }
