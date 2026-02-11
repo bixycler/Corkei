@@ -10,6 +10,7 @@ import {
   type Turn,
   type TurnId,
   type TurnRole,
+  type TurnPosition,
   type NodeId,
   type ModelTurn,
   type ContentPart,
@@ -95,13 +96,13 @@ export class ConversationHistory {
   /**
    * Adds a new turn to the conversation.
    * 
-   * @param role - 'user' or 'model'
+   * @param position - 'human', 'system', 'agent', or 'self'
    * @param contentOrParts - The message content as string or parts
    * @param relatedNodes - Links to related context nodes
    * @returns The created turn
    */
   addTurn(
-    role: TurnRole,
+    position: TurnPosition,
     contentOrParts: string | ContentPart[],
     relatedNodes: NodeId[] = []
   ): Turn {
@@ -109,14 +110,17 @@ export class ConversationHistory {
       ? [{ type: 'text', content: contentOrParts }]
       : contentOrParts;
 
+    const role: TurnRole = position === 'self' ? 'model' : 'user';
+
     const turn: Turn = {
       id: generateTurnId(),
+      position,
       role,
       parts,
       timestamp: new Date(),
       previousTurnId: this.state.latestTurnId,
       relatedNodes,
-      isStreaming: role === 'model', // Default model turns to streaming until finalized
+      isStreaming: position === 'self', // Default 'self' turns to streaming until finalized
     };
 
     this.setState(produce((s: any) => {
@@ -200,16 +204,37 @@ export class ConversationHistory {
 
   /**
    * Gets recent turns formatted for the model input.
+   * Prepends identity metadata to non-self turns.
    * 
    * @param n - Number of recent turns to fetch
    * @returns Array of ModelTurn objects
    */
   getRecentTurnsForModel(n: number): ModelTurn[] {
-    return this.getRecentTurns(n).map(turn => ({
-      role: turn.role,
-      parts: turn.parts,
-      metadata: turn.metadata,
-    }));
+    return this.getRecentTurns(n).map(turn => {
+      // For non-self turns, prepend metadata tag to the content
+      if (turn.position !== 'self') {
+        const metaTag = `<meta position='${turn.position}'>\n`;
+        const parts = [...turn.parts];
+        if (parts.length > 0 && parts[0].type === 'text') {
+          // Clone and prepend
+          parts[0] = { ...parts[0], content: metaTag + parts[0].content };
+        } else {
+          // Insert as first part
+          parts.unshift({ type: 'text', content: metaTag });
+        }
+        return {
+          role: turn.role,
+          parts,
+          metadata: turn.metadata,
+        };
+      }
+
+      return {
+        role: turn.role,
+        parts: turn.parts,
+        metadata: turn.metadata,
+      };
+    });
   }
 
   /**

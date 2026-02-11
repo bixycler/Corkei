@@ -13,9 +13,7 @@
 
 import { GoogleGenAI } from '@google/genai';
 import type { ModelInput, ModelResult, GenerationConfig, ModelStreamChunk, ContentPart } from './types';
-import { ResponseSchema } from './types';
 import { ModelProvider } from './ModelProvider';
-import zodToJsonSchema from 'zod-to-json-schema';
 
 /**
  * Configuration for the Gemini client.
@@ -168,12 +166,13 @@ export class GeminiClient extends ModelProvider {
     };
     const model = SUPPORTED_MODELS[this.model];
 
+    // Simplified config for tag-based interaction
     const config: any = {
       temperature: generationConfigBase.temperature,
       maxOutputTokens: generationConfigBase.maxOutputTokens,
     };
 
-    // Add thinking config if present (directly inside config for @google/genai SDK)
+    // Add thinking config if present
     if (generationConfigBase.thinkingLevel) {
       config.thinkingConfig = {
         includeThoughts: true,
@@ -187,43 +186,17 @@ export class GeminiClient extends ModelProvider {
       }
     }
 
-    // Add system instruction if present (unless Gemma workaround applies)
+    // Add system instruction if present
     if (input.systemInstruction && !this.isGemma()) {
       config.systemInstruction = {
         parts: [{ text: input.systemInstruction }],
       };
     }
 
-    // Use JSON schema for structured output (not for Gemma models)
-    if (!this.isGemma()) {
-      config.responseMimeType = 'application/json';
-      const schema = zodToJsonSchema(ResponseSchema as any) as any;
-      delete schema.$schema; // Gemini API does not support $schema field
-      config.responseSchema = schema;
-    }
-
-    // Add tools to config if not on Gemma
-    if (!this.isGemma()) {
-      config.tools = [{
-        functionDeclarations: [{
-          name: 'updateNodeText',
-          description: 'Updates the text content of a node in the context graph',
-          parameters: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', description: 'The ID of the node to update' },
-              text: { type: 'string', description: 'The new text content for the node' }
-            },
-            required: ['id', 'text']
-          }
-        }]
-      }];
-    }
-
     // Pass conversation history as contents
     const request: any = {
       model: this.model,
-      contents: input.input.flatMap(turn => {
+      contents: input.input.map(turn => {
         const mapPart = (p: ContentPart) => {
           const part: any = {};
           if (p.type === 'thought') {
@@ -232,52 +205,19 @@ export class GeminiClient extends ModelProvider {
             part.text = `<think>\n${p.content}\n</think>`;
           } else if (p.type === 'text') {
             part.text = p.content;
-          } else if (p.type === 'tool_call') {
-            // Tool calls are handled separately by the API
-            part.functionCall = { name: p.toolCall.name, args: p.toolCall.args };
-          } else if (p.type === 'tool_result') {
-            part.functionResponse = { name: p.toolCallId, response: { outcome: p.result } };
           }
 
-          // Feed back thoughtSignature if present for thought coherence (required by Gemini 3)
+          // Feed back thoughtSignature if present for thought coherence
           if (p.metadata?.thoughtSignature) {
             part.thoughtSignature = p.metadata.thoughtSignature;
           }
           return part;
         };
 
-        if (turn.role === 'user') {
-          return [{
-            role: 'user',
-            parts: turn.parts.map(mapPart)
-          }];
-        } else {
-          // Model turn - split into alternating model and user turns for tool interactions
-          const contents: any[] = [];
-          let currentRole: 'model' | 'user' = 'model';
-          let currentParts: any[] = [];
-
-          for (const p of turn.parts) {
-            const partRole = p.type === 'tool_result' ? 'user' : 'model';
-
-            if (partRole !== currentRole) {
-              // Commit current block
-              if (currentParts.length > 0) {
-                contents.push({ role: currentRole, parts: currentParts });
-              }
-              currentRole = partRole;
-              currentParts = [];
-            }
-            currentParts.push(mapPart(p));
-          }
-
-          // Commit final block
-          if (currentParts.length > 0) {
-            contents.push({ role: currentRole, parts: currentParts });
-          }
-
-          return contents;
-        }
+        return {
+          role: turn.role,
+          parts: turn.parts.map(mapPart).filter(p => p.text || p.thoughtSignature)
+        };
       }),
       config,
     };
@@ -331,16 +271,6 @@ export class GeminiClient extends ModelProvider {
             metadata: hasMetadata ? metadata : undefined
           });
         }
-      } else if (partAny.functionCall) {
-        parts.push({
-          type: 'tool_call',
-          toolCall: {
-            id: partAny.functionCall.id || `call_${Date.now()}_${parts.length}`,
-            name: partAny.functionCall.name,
-            args: partAny.functionCall.args,
-          },
-          metadata: hasMetadata ? metadata : undefined,
-        });
       } else if (part.text !== undefined || hasMetadata) {
         parts.push({
           type: 'text',
@@ -402,17 +332,6 @@ export class GeminiClient extends ModelProvider {
             console.debug('[GeminiClient.generateStream()] chunk [thought]:', part.text);
             yield { type: 'thought', text: part.text || '', metadata: hasMetadata ? metadata : undefined };
           }
-        } else if (partAny.functionCall) {
-          console.debug('[GeminiClient.generateStream()] chunk tool_call:', partAny.functionCall);
-          yield {
-            type: 'tool_call',
-            toolCall: {
-              id: partAny.functionCall.id || `call_${Date.now()}`,
-              name: partAny.functionCall.name,
-              args: partAny.functionCall.args,
-            },
-            metadata: hasMetadata ? metadata : undefined
-          };
         } else if (part.text !== undefined || hasMetadata) {
           console.debug('[GeminiClient.generateStream()] chunk text:', part.text);
           yield { type: 'text', text: part.text || '', metadata: hasMetadata ? metadata : undefined };

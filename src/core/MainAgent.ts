@@ -1,34 +1,20 @@
-/**
- * MainAgent - The main orchestrator agent for Corkei.
- * 
- * This is the primary agent that:
- * - Uses its root node text as the system instruction
- * - Handles node link updates and content modifications
- * - Serves as the entry point for user interactions
- * 
- * The response format is designed to allow the agent to:
- * 1. Update links in the current turn to related nodes
- * 2. Modify contents of related nodes
- * 3. Optionally respond to the user (can return "void")
- */
-
+import MarkdownIt from 'markdown-it';
 import type {
   ContextGraph,
   NodeId,
-  NodeUpdate,
-  LinkUpdate,
   ModelProvider,
   AgentConfig,
 } from './types';
 import { nodeId } from './types';
 import { Agent } from './Agent';
 import { ConversationHistory } from './Conversation';
-import { parse } from 'best-effort-json-parser';
 
 /**
  * MainAgent - The primary orchestrator agent.
  */
 export class MainAgent extends Agent {
+  private md: MarkdownIt;
+
   constructor(
     config: AgentConfig,
     graph: ContextGraph,
@@ -36,67 +22,114 @@ export class MainAgent extends Agent {
     history?: ConversationHistory
   ) {
     super(config, graph, modelProvider, history);
+    this.md = new MarkdownIt({
+      html: true,
+      linkify: true,
+      breaks: false, // Standard Markdown behavior (p for \n\n, nothing for \n)
+      typographer: true
+    });
   }
 
   /**
-   * Parses the model's response to extract structured updates.
-   * 
-   * Expected JSON format:
-   * {
-   *   "thought": "Thinking about this...",
-   *   "response": "Response to user...",
-   *   "links": ["node_id_1", "node_id_2"],
-   *   "updates": [{"id": "node_id", "text": "New content..."}]
-   * }
+   * Parses the model's response to extract structured updates using tags and registers.
    */
   protected parseResponse(responseText: string): {
     thought?: string;
     response?: string;
-    nodeUpdates: NodeUpdate[];
-    linkUpdates: LinkUpdate[];
+    graphActionPayload?: any;
   } {
-    const nodeUpdates: NodeUpdate[] = [];
-    const linkUpdates: LinkUpdate[] = [];
     let response: string | undefined;
     let thought: string | undefined;
+    let graphActionPayload: any = null;
 
     if (!responseText.trim()) {
-      return { thought, response, nodeUpdates, linkUpdates };
+      return { thought, response, graphActionPayload };
     }
 
-    const jsonText = this.stripCodeFences(responseText);
+    const thoughts: string[] = [];
+    const acts: { type: string; id?: string; content: string }[] = [];
+    const registers = new Map<string, string>();
 
-    try {
-      // Use best-effort-json-parser for streaming compatibility
-      const parsed = parse(jsonText);
+    // Robust Tag Extraction using Regex
+    // Fix: Separated tag name from attributes to allow correct backreference for closing tag.
+    const tagRegex = /<(think|act)(?:\s+type=['"](\w+)['"])?(?:\s+id=['"]([^'"]+)['"])?\s*>([\s\S]*?)<\/\1>/gi;
 
-      // Extract thought
-      if (parsed.thought) {
-        thought = String(parsed.thought);
+    let match;
+    while ((match = tagRegex.exec(responseText)) !== null) {
+      const tagName = match[1].toLowerCase();
+      const type = match[2];
+      const id = match[3];
+      const content = match[4];
+
+      if (tagName === 'think') {
+        thoughts.push(content.trim());
+      } else if (tagName === 'act') {
+        acts.push({ type: type || '', id, content });
       }
+    }
 
-      // Extract response
-      if (parsed.response) {
-        response = String(parsed.response);
+    // Process Registers first
+    for (const act of acts) {
+      if (act.type === 'register' && act.id) {
+        registers.set(act.id, act.content);
       }
+    }
 
-      // Extract links
-      if (Array.isArray(parsed.links)) {
-        for (const link of parsed.links) {
-          if (link) {
-            linkUpdates.push({ nodeId: nodeId(String(link)) });
+    // Process Actions
+    for (const act of acts) {
+      if (act.type === 'graph') {
+        try {
+          const jsonText = act.content.trim()
+            .replace(/^```[a-z]*\s*/i, '') // Remove opening fence + optional lang
+            .replace(/\s*```$/g, '');      // Remove closing fence
+
+          let parsed = JSON.parse(jsonText);
+          this.substituteRegisters(parsed, registers);
+
+          if (!graphActionPayload) {
+            graphActionPayload = parsed;
+          } else {
+            for (const key of Object.keys(parsed)) {
+              if (Array.isArray(parsed[key])) {
+                graphActionPayload[key] = [...(graphActionPayload[key] || []), ...parsed[key]];
+              } else {
+                graphActionPayload[key] = parsed[key];
+              }
+            }
           }
+        } catch (err) {
+          console.error('[MainAgent] Failed to parse act type="graph":', err, act.content);
         }
+      } else if (act.type === 'response') {
+        response = act.content;
       }
-
-      return { thought, response, nodeUpdates, linkUpdates };
-    } catch (err) {
-      // Fallback: treat entire text as response if JSON parsing fails
-      console.warn('[MainAgent] Failed to parse JSON response, using as plain text:', err);
-      response = jsonText;
     }
 
-    return { thought, response, nodeUpdates, linkUpdates };
+    thought = thoughts.join('\n\n');
+
+    // Final substitution for verbal response if it uses registers
+    if (response) {
+      response = response.replace(/\${(\w+)}/g, (_, id) => registers.get(id) || `${id}`);
+    }
+
+    return { thought, response, graphActionPayload };
+  }
+
+  /**
+   * Recursively substitutes ${id} placeholders with register contents.
+   */
+  private substituteRegisters(obj: any, registers: Map<string, string>) {
+    if (!obj || typeof obj !== 'object') return;
+
+    for (const key of Object.keys(obj)) {
+      const val = obj[key];
+      if (typeof val === 'string') {
+        // Replace ${id}
+        obj[key] = val.replace(/\${(\w+)}/g, (_, id) => registers.get(id) || `${id}`);
+      } else if (typeof val === 'object') {
+        this.substituteRegisters(val, registers);
+      }
+    }
   }
 
   /**
@@ -104,27 +137,51 @@ export class MainAgent extends Agent {
    */
   static getOutputFormatInstructions(): string {
     return `
-## Output Format
+## Tag-based Interaction Pattern
 
-Respond with a JSON object containing any combination of these fields:
+You must wrap ALL your output in either <think> or <act> blocks. No text is allowed outside these blocks.
 
+### 1. Reasoning & Planning
+Use <think> for your internal monologue, planning, and reasoning.
+<think>
+Your thoughts here...
+</think>
+
+### 2. Complex Content (Registers)
+If you need to update a node with large content (especially text containing triple-backticks), first store it in a register:
+<act type='register' id='reg1'>
+# Markdown Content
+\`\`\`python
+print("Hello")
+\`\`\`
+</act>
+
+### 3. Graph Actions
+Use <act type='graph'> with a JSON payload to interact with the graph.
+<act type='graph'>
 \`\`\`json
 {
-  "thought": "Your reasoning and planning process",
-  "response": "Your verbal response to the user",
-  "links": ["node_id_1", "node_id_2"]
+  "updates": [
+    { "id": "node_id", "text": "\${reg1}", "children": ["child1"] }
+  ],
+  "links": ["related_node1", "related_node2"]
 }
 \`\`\`
+</act>
 
-Notes:
-- All fields are optional. Only include what's needed
-- \`thought\`: Your thinking process including reasoning, planning, and any other internal monologue (for your own consistency)
-- \`response\`: Your response to the user
-- \`links\`: Node IDs related to this turn
+Actions:
+- \`updates\`: Update nodes with new text and/or children.
+- \`links\`: Mark nodes as relevant to the current turn.
 
-## Graph Updates
+### 4. Verbal Response
+Use <act type='response'> for your message to the human user.
+<act type='response'>
+Your response text...
+</act>
 
-To update the context graph, use the \`updateNodeText(id, text)\` tool call. You can call it multiple times if needed.
+Rules:
+- Tags MUST be on their own line.
+- Content outside tags is strictly forbidden.
 `.trim();
   }
 }

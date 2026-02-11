@@ -36,7 +36,7 @@ function createDemoGraph(): { graph: ContextGraph; rootNodeId: NodeId } {
   const root = createNode('root', `
 # Corkei Assistant
 
-You are Corkei, a helpful AI assistant that manages knowledge in a graph structure.  
+You are Corkei, a helpful AI assistant that manages knowledge in a graph structure. A tree view of the graph is fetched to your "mind" as the context below.
 
 Your primary tasks:
 1. Understand user queries and link them to relevant context nodes
@@ -177,8 +177,8 @@ const Corkei: Component<CorkeiProps> = (props) => {
       const userTurnContent = message;
       const assistantResponse = `This is a demo response to: "${message}". In a real scenario, this would be an AI-generated answer.`;
 
-      conversationHistory.addTurn('user', userTurnContent, [rootNodeId()]);
-      conversationHistory.addTurn('model', assistantResponse, [rootNodeId()]);
+      conversationHistory.addTurn('human', userTurnContent, [rootNodeId()]);
+      conversationHistory.addTurn('self', assistantResponse, [rootNodeId()]);
       return;
     }
 

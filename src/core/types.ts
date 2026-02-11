@@ -74,7 +74,13 @@ export type ContextGraph = Map<NodeId, ContextNode>;
 // =============================================================================
 
 /**
- * Role in a conversation turn.
+ * Participant position in a conversation.
+ * Determines UI alignment and identity in the history.
+ */
+export type TurnPosition = 'human' | 'system' | 'agent' | 'self';
+
+/**
+ * Role in a conversation turn (mapped to Gemini API).
  */
 export type TurnRole = 'user' | 'model';
 
@@ -184,7 +190,10 @@ export interface Turn {
   /** Unique identifier for this turn */
   id: TurnId;
 
-  /** Role of the participant (user or assistant) */
+  /** Position of the participant (human, system, agent, or self) */
+  position: TurnPosition;
+
+  /** Role mapped to model expectations (user or model) */
   role: TurnRole;
 
   /** 
@@ -261,12 +270,6 @@ export interface GenerationConfig {
 export interface TurnResult {
   /** Optional response text to the user */
   response?: string;
-
-  /** Updates to node contents */
-  nodeUpdates: NodeUpdate[];
-
-  /** Updates to links in the current turn */
-  linkUpdates: LinkUpdate[];
 
   /** The created turn record */
   turn: Turn;

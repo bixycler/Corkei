@@ -19,14 +19,12 @@ import {
   type ContentPart,
   type TextPart,
   type ThoughtPart,
-  type ToolCallPart,
   nodeId,
   type TurnId,
   turnId,
 } from './types';
 import { generateTextualContext } from './ContextGraph';
 import { ConversationHistory } from './Conversation';
-import { parse } from 'best-effort-json-parser';
 
 /**
  * Base class for Corkei agents.
@@ -95,96 +93,68 @@ export abstract class Agent {
     // 1. Record user turn
     // Skip if empty, effectively a "continue" command
     if (userMessage.trim()) {
-      this.history.addTurn('user', userMessage);
+      this.history.addTurn('human', userMessage);
     }
 
     // 2. Build context
     const systemInstruction = this.getSystemInstruction();
-
     // 3. Create a placeholder model turn for waiting indicator
-    const modelTurn = this.history.addTurn('model', []);
+    const modelTurn = this.history.addTurn('self', []);
     const turnStartTime = Date.now();
-    const displayParts: ContentPart[] = [];
-    let lastResponse: string | undefined;
-
     try {
+      const allAccumulatedParts: ContentPart[] = [];
+      let lastResponse = '';
       let shouldContinue = true;
-      let loopCount = 0;
 
-      while (shouldContinue && loopCount < 5) {
+      while (shouldContinue) {
+        // 2. Build context
+        const systemInstruction = this.getSystemInstruction();
+        const input = this.history.getRecentTurnsForModel(this.config.maxRecentTurns || 100);
+
         // 4. Call model
-        const recentTurns = this.history.getRecentTurnsForModel(this.config.maxRecentTurns || 100);
         const result = await this.modelProvider.generate({
           systemInstruction,
-          input: recentTurns,
+          input,
           generationConfig: this.config.generationConfig,
         });
 
-        // 5. Parse the response
+        // 5. Parse actor response
         const fullText = result.parts
           .filter(p => p.type === 'text')
           .map(p => p.content)
           .join('');
         const parsed = this.parseResponse(fullText);
 
-        // 6. Process parts
-        const toolCalsToExecute: ToolCallPart[] = [];
-        let hasNewNativeToolCalls = false;
+        // shouldContinue if we have any graph action payload
+        const hasGraphActions = !!parsed.graphActionPayload;
 
-        for (const p of result.parts) {
-          if (p.type === 'text') {
-            const { thought, response } = this.extractThoughtAndResponse(p.content);
-            if (thought !== undefined) displayParts.push({ type: 'thought', content: thought, durationMs: p.durationMs, metadata: p.metadata });
-            if (response !== undefined) {
-              displayParts.push({ type: 'text', content: response, durationMs: p.durationMs, metadata: p.metadata });
-              lastResponse = response;
-            }
-
-            if (thought === undefined && response === undefined) {
-              displayParts.push(p);
-            }
-          } else if (p.type === 'tool_call') {
-            displayParts.push(p);
-            hasNewNativeToolCalls = true;
-            if (p.toolCall.name === 'updateNodeText') {
-              toolCalsToExecute.push(p);
-            }
-          } else {
-            displayParts.push(p);
-          }
+        // 6. Accumulate parts for turn
+        if (parsed.thought) {
+          allAccumulatedParts.push({ type: 'thought', content: parsed.thought });
+        }
+        if (parsed.response) {
+          allAccumulatedParts.push({ type: 'text', content: parsed.response });
+          lastResponse = parsed.response;
+        } else if (!parsed.thought && fullText.trim() && !hasGraphActions) {
+          // Fallback for unexpected content only if no actions were found
+          allAccumulatedParts.push({ type: 'text', content: fullText });
+          lastResponse = fullText;
         }
 
-        // Execute native tool calls
-        for (const part of toolCalsToExecute) {
-          const update = {
-            nodeId: nodeId(String(part.toolCall.args.id)),
-            newText: String(part.toolCall.args.text)
-          };
-          const [resultMsg] = this.applyNodeUpdates([update]);
-          displayParts.push({
-            type: 'tool_result',
-            toolCallId: part.toolCall.id,
-            result: resultMsg
-          });
-        }
-
-        // Apply updates from JSON (legacy/fallback)
-        if (parsed.nodeUpdates.length > 0) {
-          const updateResults = this.applyNodeUpdates(parsed.nodeUpdates);
-          this.injectToolParts(displayParts, parsed.nodeUpdates, updateResults);
-          // Legacy updates don't trigger automatic continuation in the same way native tools do
-        }
-
-        // Update history for next iteration
-        this.history.updateTurnParts(modelTurn.id, displayParts);
+        // Update model turn with accumulated parts
+        this.history.updateTurnParts(modelTurn.id, [...allAccumulatedParts]);
         if (result.metadata) {
           this.history.updateTurnMetadata(modelTurn.id, result.metadata);
         }
-        this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
 
-        // Only continue if we had native tool calls and no final verbal response yet
-        shouldContinue = hasNewNativeToolCalls && !lastResponse;
-        loopCount++;
+        if (hasGraphActions) {
+          const results = this.executeGraphActions(parsed.graphActionPayload);
+          if (results.length > 0) {
+            this.history.addTurn('system', results.join('\n') + '\n\nNew content reloaded in System Instructions.');
+          }
+        }
+
+        shouldContinue = hasGraphActions;
       }
 
       this.history.updateTurnStreaming(modelTurn.id, false);
@@ -194,8 +164,6 @@ export abstract class Agent {
 
       return {
         response: lastResponse || '',
-        nodeUpdates: [], // Already applied
-        linkUpdates: [], // Already applied
         turn: modelTurn,
       };
     } catch (err) {
@@ -212,7 +180,7 @@ export abstract class Agent {
   processTurnStream(userMessage: string): AsyncIterable<{ type: 'text' | 'thought', content: string }> {
     this.history.removeEmptyTurns();
     if (userMessage.trim()) {
-      this.history.addTurn('user', userMessage);
+      this.history.addTurn('human', userMessage);
     }
     return this._processTurnStreamInner(userMessage);
   }
@@ -222,100 +190,87 @@ export abstract class Agent {
    */
   private async * _processTurnStreamInner(userMessage: string): AsyncIterable<{ type: 'text' | 'thought', content: string }> {
     const systemInstruction = this.getSystemInstruction();
-    const modelTurn = this.history.addTurn('model', []);
+    const modelTurn = this.history.addTurn('self', []);
     const turnStartTime = Date.now();
     const parts: ContentPart[] = [];
     let currentPartIndex = -1;
-    let loopCount = 0;
     let shouldContinue = true;
+    const allIterationParts: ContentPart[] = [];
 
     try {
-      while (shouldContinue && loopCount < 5) {
-        let hasNewNativeToolCalls = false;
+      while (shouldContinue) {
         let lastVerbalResponse: string | undefined;
+        let iterationParts: ContentPart[] = [];
+        let innerPartIndex = -1;
 
         const recentTurns = this.history.getRecentTurnsForModel(this.config.maxRecentTurns || 100);
 
-        if (!this.modelProvider.generateStream) {
-          // Non-streaming fallback... (omitted for brevity, or implement inline)
-          const result = await this.modelProvider.generate({ systemInstruction, input: recentTurns, generationConfig: this.config.generationConfig });
-          // ... (simplified handle result)
-          for (const p of result.parts) {
-            parts.push(p);
-            if (p.type === 'tool_call') hasNewNativeToolCalls = true;
-            if (p.type === 'text') lastVerbalResponse = p.content;
-          }
-        } else {
-          const stream = this.modelProvider.generateStream({
-            systemInstruction,
-            input: recentTurns,
-            generationConfig: this.config.generationConfig,
-          });
+        const stream = this.modelProvider.generateStream({
+          systemInstruction,
+          input: recentTurns,
+          generationConfig: this.config.generationConfig,
+        });
 
-          let firstTokenTime: number | null = null;
-          let partStartTime = Date.now();
+        let firstTokenTime: number | null = null;
+        let partStartTime = Date.now();
 
-          for await (const chunk of stream) {
-            if (chunk.type === 'text' || chunk.type === 'thought') {
-              const now = Date.now();
-              if (firstTokenTime === null) {
-                firstTokenTime = now;
-                this.history.updateTurnFirstTokenTimestamp(modelTurn.id, new Date(firstTokenTime));
-              }
-
-              if (currentPartIndex === -1 || parts[currentPartIndex].type !== chunk.type) {
-                partStartTime = now;
-                parts.push({ type: chunk.type, content: chunk.text, durationMs: 0, metadata: chunk.metadata } as any);
-                currentPartIndex = parts.length - 1;
-              } else {
-                const p = parts[currentPartIndex] as TextPart | ThoughtPart;
-                p.content += chunk.text;
-                p.durationMs = now - partStartTime;
-                if (chunk.metadata) p.metadata = { ...(p.metadata || {}), ...chunk.metadata };
-              }
-
-              if (chunk.metadata?.thoughtSignature) {
-                this.history.updateTurnMetadata(modelTurn.id, { ...((modelTurn.metadata as any) || {}), thoughtSignature: chunk.metadata.thoughtSignature });
-              }
-
-              // Update history parts for UI
-              this.updateDisplayParts(modelTurn.id, parts);
-              yield { type: chunk.type, content: chunk.text };
-            } else if (chunk.type === 'tool_call') {
-              parts.push({ type: 'tool_call', toolCall: chunk.toolCall, metadata: chunk.metadata });
-              currentPartIndex = parts.length - 1;
-              hasNewNativeToolCalls = true;
-              this.updateDisplayParts(modelTurn.id, parts);
+        for await (const chunk of stream) {
+          if (chunk.type === 'text' || chunk.type === 'thought') {
+            const now = Date.now();
+            if (firstTokenTime === null) {
+              firstTokenTime = now;
+              this.history.updateTurnFirstTokenTimestamp(modelTurn.id, new Date(firstTokenTime));
             }
+
+            if (innerPartIndex === -1 || iterationParts[innerPartIndex].type !== chunk.type) {
+              partStartTime = now;
+              iterationParts.push({ type: chunk.type, content: chunk.text, durationMs: 0, metadata: chunk.metadata } as any);
+              innerPartIndex = iterationParts.length - 1;
+            } else {
+              const p = iterationParts[innerPartIndex] as TextPart | ThoughtPart;
+              p.content += chunk.text;
+              p.durationMs = now - partStartTime;
+              if (chunk.metadata) p.metadata = { ...(p.metadata || {}), ...chunk.metadata };
+            }
+
+            if (chunk.metadata?.thoughtSignature) {
+              this.history.updateTurnMetadata(modelTurn.id, { ...((modelTurn.metadata as any) || {}), thoughtSignature: chunk.metadata.thoughtSignature });
+            }
+
+            // Update history parts for UI (aggregated)
+            this.history.updateTurnParts(modelTurn.id, [...allIterationParts, ...iterationParts]);
+            yield { type: chunk.type, content: chunk.text };
           }
         }
 
-        // Execute tool calls found in the current output
-        const toolCalls = parts.filter(p => p.type === 'tool_call' && !parts.some(r => r.type === 'tool_result' && r.toolCallId === p.toolCall.id)) as ToolCallPart[];
-        for (const call of toolCalls) {
-          if (call.toolCall.name === 'updateNodeText') {
-            const update = { nodeId: nodeId(String(call.toolCall.args.id)), newText: String(call.toolCall.args.text) };
-            const [resultMsg] = this.applyNodeUpdates([update]);
-            parts.push({ type: 'tool_result', toolCallId: call.toolCall.id, result: resultMsg });
+        // Final processing for this iteration: Parse for tags/actions
+        const fullIterationText = iterationParts.filter(p => p.type === 'text').map(p => p.content).join('');
+        const parsed = this.parseResponse(fullIterationText);
+
+        // shouldContinue if any graph action payload exists
+        const hasGraphActions = !!parsed.graphActionPayload;
+
+        // Create iteration fragments
+        if (parsed.thought) {
+          allIterationParts.push({ type: 'thought', content: parsed.thought });
+        }
+        if (parsed.response) {
+          allIterationParts.push({ type: 'text', content: parsed.response });
+          lastVerbalResponse = parsed.response;
+        } else if (!parsed.thought && fullIterationText.trim() && !hasGraphActions) {
+          allIterationParts.push({ type: 'text', content: fullIterationText });
+        }
+
+        this.history.updateTurnParts(modelTurn.id, [...allIterationParts]);
+
+        if (hasGraphActions) {
+          const results = this.executeGraphActions(parsed.graphActionPayload);
+          if (results.length > 0) {
+            this.history.addTurn('system', results.join('\n') + '\n\nNew content reloaded in System Instructions.');
           }
         }
 
-        // Final parse of this iteration
-        const fullText = parts.filter(p => p.type === 'text').map(p => p.content).join('');
-        const parsed = this.parseResponse(fullText);
-        if (parsed.response) lastVerbalResponse = parsed.response;
-
-        if (parsed.nodeUpdates.length > 0) {
-          const results = this.applyNodeUpdates(parsed.nodeUpdates);
-          this.injectToolParts(parts, parsed.nodeUpdates, results);
-        }
-
-        this.history.updateTurnParts(modelTurn.id, parts);
-        this.history.updateTurnLinks(modelTurn.id, parsed.linkUpdates.map(u => u.nodeId));
-
-        shouldContinue = hasNewNativeToolCalls && !lastVerbalResponse;
-        loopCount++;
-        currentPartIndex = -1; // Reset for next iteration if continuing
+        shouldContinue = hasGraphActions;
       }
 
       this.history.updateTurnStreaming(modelTurn.id, false);
@@ -330,81 +285,85 @@ export abstract class Agent {
     }
   }
 
-  /**
-   * Helper to update display parts in history while keeping thought extraction alive.
-   */
-  private updateDisplayParts(turnId: TurnId, parts: ContentPart[]) {
-    const displayParts: ContentPart[] = [];
-    for (const p of parts) {
-      if (p.type === 'text') {
-        const { thought, response } = this.extractThoughtAndResponse(p.content);
-        if (thought !== undefined) displayParts.push({ type: 'thought', content: thought, durationMs: p.durationMs, metadata: p.metadata });
-        if (response !== undefined) displayParts.push({ type: 'text', content: response, durationMs: p.durationMs, metadata: p.metadata });
-        if (thought === undefined && response === undefined) displayParts.push(p);
-      } else {
-        displayParts.push(p);
-      }
-    }
-    this.history.updateTurnParts(turnId, displayParts);
+  public getHistory(): ConversationHistory {
+    return this.history;
   }
 
   protected abstract parseResponse(responseText: string): {
     thought?: string;
     response?: string;
-    nodeUpdates: NodeUpdate[];
-    linkUpdates: LinkUpdate[];
+    graphActionPayload?: any;
   };
 
-  protected injectToolParts(parts: ContentPart[], updates: NodeUpdate[], results: string[]): void {
-    updates.forEach((update, index) => {
-      const callId = `update_${Date.now()}_${index}`;
-      parts.push({
-        type: 'tool_call',
-        toolCall: { id: callId, name: 'updateNodeText', args: { id: update.nodeId, text: update.newText } }
-      });
-      parts.push({ type: 'tool_result', toolCallId: callId, result: results[index] });
-    });
-  }
+  /**
+   * Dispatches graph actions from the model's payload.
+   */
+  protected executeGraphActions(payload: any): string[] {
+    const results: string[] = [];
+    if (!payload) return results;
 
-  protected applyNodeUpdates(updates: NodeUpdate[]): string[] {
-    return updates.map(update => {
-      const node = this.graph.get(update.nodeId);
-      if (!node) return `Error: Node "${update.nodeId}" not found`;
-      let changed = false;
-      if (update.newText !== undefined) { node.text = update.newText; changed = true; }
-      if (update.newChildren !== undefined) { node.children = update.newChildren; changed = true; }
-      if (update.newLinks !== undefined) { node.links = update.newLinks; changed = true; }
-      if (changed) {
-        node.metadata.updatedAt = new Date();
-        return `Successfully updated node "${update.nodeId}"`;
+    // 1. Handle Node Updates (the "good old update JSON")
+    if (Array.isArray(payload.updates)) {
+      for (const update of payload.updates) {
+        if (!update.id) continue;
+        const id = nodeId(update.id);
+        const node = this.graph.get(id);
+        if (!node) {
+          results.push(`Error: Node #${id} not found`);
+          continue;
+        }
+
+        let changed = false;
+        if (update.text !== undefined) { node.text = update.text; changed = true; }
+        if (Array.isArray(update.children)) { node.children = update.children.map((c: any) => nodeId(String(c))); changed = true; }
+        if (Array.isArray(update.links)) { node.links = update.links.map((l: any) => nodeId(String(l))); changed = true; }
+
+        if (changed) {
+          node.metadata.updatedAt = new Date();
+          results.push(`Successfully updated node #${id}`);
+        }
       }
-      return `No changes needed for node "${update.nodeId}"`;
-    });
-  }
-
-  protected extractThoughtAndResponse(text: string): { thought?: string; response?: string } {
-    if (!text.trim()) return {};
-    let jsonText = this.stripCodeFences(text);
-    try {
-      const parsed = parse(jsonText);
-      if (typeof parsed !== 'object' || parsed === null) return { response: text };
-      return {
-        thought: 'thought' in parsed ? String(parsed.thought) : undefined,
-        response: 'response' in parsed ? String(parsed.response) : undefined,
-      };
-    } catch {
-      return { response: text };
     }
-  }
 
-  protected stripCodeFences(text: string): string {
-    const cleaned = text.trim();
-    const match = cleaned.match(/```(?:[a-z]*)\s*([\s\S]*?)(?:```|$)/i);
-    if (match) return match[1].trim();
-    return cleaned;
-  }
+    // 2. Handle Read/Load (shortcuts)
+    const readIds = Array.isArray(payload.read) ? payload.read : (Array.isArray(payload.load) ? payload.load : []);
+    for (const rId of readIds) {
+      const id = nodeId(String(rId));
+      const node = this.graph.get(id);
+      if (node) {
+        const root = this.graph.get(this.config.rootNodeId);
+        if (root && !root.children.includes(id)) {
+          root.children.push(id);
+          root.metadata.updatedAt = new Date();
+          results.push(`Node #${id} successfully loaded into context`);
+        } else {
+          results.push(`Node #${id} is already in context`);
+        }
+      } else {
+        results.push(`Error: Node #${id} not found for loading`);
+      }
+    }
 
-  public getHistory(): ConversationHistory {
-    return this.history;
+    // 3. Handle Zoom
+    if (Array.isArray(payload.zoom)) {
+      for (const zId of payload.zoom) {
+        const id = nodeId(String(zId));
+        if (this.graph.has(id)) {
+          this.config.rootNodeId = id;
+          results.push(`Zoomed into node #${id}; context tree re-projected`);
+        } else {
+          results.push(`Error: Cannot zoom into #${id} (not found)`);
+        }
+      }
+    }
+
+    // 4. Handle Links (shortcuts)
+    if (Array.isArray(payload.links)) {
+      for (const lId of payload.links) {
+        results.push(`Marked node #${lId} as relevant to discussion`);
+      }
+    }
+
+    return results;
   }
 }
