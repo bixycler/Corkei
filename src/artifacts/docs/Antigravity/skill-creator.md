@@ -1,0 +1,1 @@
+/home/dinhlx/source/agent-skills/claude-skills/skills/skill-creator/SKILL.md

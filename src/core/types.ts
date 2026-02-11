@@ -308,6 +308,9 @@ export interface ModelInput {
 
   /** Generation configuration */
   generationConfig?: GenerationConfig;
+
+  /** Optional abort signal for cancellation */
+  abortSignal?: AbortSignal;
 }
 
 /**

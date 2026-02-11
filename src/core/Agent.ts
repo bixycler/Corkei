@@ -198,48 +198,108 @@ export abstract class Agent {
     const allIterationParts: ContentPart[] = [];
 
     try {
+      let retryCount = 0;
+      const maxRetries = 3;
+
       while (shouldContinue) {
         let lastVerbalResponse: string | undefined;
         let iterationParts: ContentPart[] = [];
         let innerPartIndex = -1;
+        let accumulatedText = '';
+        let formatError: string | null = null;
 
+        const abortController = new AbortController();
         const recentTurns = this.history.getRecentTurnsForModel(this.config.maxRecentTurns || 100);
 
         const stream = this.modelProvider.generateStream({
           systemInstruction,
           input: recentTurns,
           generationConfig: this.config.generationConfig,
+          abortSignal: abortController.signal,
         });
 
         let firstTokenTime: number | null = null;
         let partStartTime = Date.now();
 
-        for await (const chunk of stream) {
-          if (chunk.type === 'text' || chunk.type === 'thought') {
-            const now = Date.now();
-            if (firstTokenTime === null) {
-              firstTokenTime = now;
-              this.history.updateTurnFirstTokenTimestamp(modelTurn.id, new Date(firstTokenTime));
-            }
+        try {
+          for await (const chunk of stream) {
+            if (chunk.type === 'text' || chunk.type === 'thought') {
+              const now = Date.now();
+              if (firstTokenTime === null) {
+                firstTokenTime = now;
+                this.history.updateTurnFirstTokenTimestamp(modelTurn.id, new Date(firstTokenTime));
+              }
 
-            if (innerPartIndex === -1 || iterationParts[innerPartIndex].type !== chunk.type) {
-              partStartTime = now;
-              iterationParts.push({ type: chunk.type, content: chunk.text, durationMs: 0, metadata: chunk.metadata } as any);
-              innerPartIndex = iterationParts.length - 1;
-            } else {
-              const p = iterationParts[innerPartIndex] as TextPart | ThoughtPart;
-              p.content += chunk.text;
-              p.durationMs = now - partStartTime;
-              if (chunk.metadata) p.metadata = { ...(p.metadata || {}), ...chunk.metadata };
-            }
+              if (innerPartIndex === -1 || iterationParts[innerPartIndex].type !== chunk.type) {
+                partStartTime = now;
+                iterationParts.push({ type: chunk.type, content: chunk.text, durationMs: 0, metadata: chunk.metadata } as any);
+                innerPartIndex = iterationParts.length - 1;
+              } else {
+                const p = iterationParts[innerPartIndex] as any;
+                p.content += chunk.text;
+                p.durationMs = now - partStartTime;
+                if (chunk.metadata) p.metadata = { ...(p.metadata || {}), ...chunk.metadata };
+              }
 
-            if (chunk.metadata?.thoughtSignature) {
-              this.history.updateTurnMetadata(modelTurn.id, { ...((modelTurn.metadata as any) || {}), thoughtSignature: chunk.metadata.thoughtSignature });
-            }
+              if (chunk.metadata?.thoughtSignature) {
+                this.history.updateTurnMetadata(modelTurn.id, { ...((modelTurn.metadata as any) || {}), thoughtSignature: chunk.metadata.thoughtSignature });
+              }
 
-            // Update history parts for UI (aggregated)
-            this.history.updateTurnParts(modelTurn.id, [...allIterationParts, ...iterationParts]);
-            yield { type: chunk.type, content: chunk.text };
+              // Real-time Format Validation
+              accumulatedText += chunk.text;
+              formatError = this.checkFormatting(accumulatedText);
+              if (formatError) {
+                console.warn('[Agent] Format violation detected. Aborting stream.', formatError);
+                abortController.abort();
+                break;
+              }
+
+              this.history.updateTurnParts(modelTurn.id, [...allIterationParts, ...iterationParts]);
+              yield { type: chunk.type, content: chunk.text };
+            }
+          }
+        } catch (err) {
+          // If we have a formatError, it means we aborted on purpose.
+          // We catch the error so we can proceed to the retry logic below.
+          if (!formatError) {
+            throw err;
+          }
+          console.debug('[Agent] Caught expected abortion error after format violation.');
+        }
+
+        // Final Format Validation (checks for unclosed tags)
+        if (!formatError) {
+          formatError = this.checkFormatting(accumulatedText, true);
+          if (formatError) {
+            console.warn('[Agent] Final format violation detected:', formatError);
+            // No need to abort as stream is already done, but we trigger the retry loop
+          }
+        }
+
+        if (formatError) {
+          if (retryCount < maxRetries) {
+            retryCount++;
+            console.warn(`[Agent] Format violation detected. Retrying (${retryCount}/${maxRetries})... Error: ${formatError}`);
+
+            this.history.addTurn('system', `FORMAT ERROR: ${formatError}
+
+Your previous response FAILED the formatting check:
+<pre>
+${accumulatedText}
+</pre>
+
+CRITICAL RULES:
+1. You MUST wrap ALL your output in <think>...</think> or <act>...</act> blocks.
+2. NO text is allowed outside of <think>...</think> or <act>...</act> blocks.
+3. To talk to the user, you MUST use <act type='response'>...</act>.
+
+Please REWRITE your entire last response correctly now.`);
+
+            this.history.updateTurnParts(modelTurn.id, [...allIterationParts]); // Revert to previous clean state
+            continue; // Loop back for another attempt
+          } else {
+            // Hard fail after retries
+            throw new Error(`Model persistent format violation: ${formatError}`);
           }
         }
 
@@ -288,6 +348,8 @@ export abstract class Agent {
   public getHistory(): ConversationHistory {
     return this.history;
   }
+
+  public abstract checkFormatting(text: string, isFinal?: boolean): string | null;
 
   protected abstract parseResponse(responseText: string): {
     thought?: string;

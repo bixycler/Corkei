@@ -170,6 +170,7 @@ export class GeminiClient extends ModelProvider {
     const config: any = {
       temperature: generationConfigBase.temperature,
       maxOutputTokens: generationConfigBase.maxOutputTokens,
+      abortSignal: input.abortSignal, // Pass the signal to the internal config
     };
 
     // Add thinking config if present

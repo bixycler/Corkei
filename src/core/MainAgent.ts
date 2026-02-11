@@ -51,8 +51,8 @@ export class MainAgent extends Agent {
     const registers = new Map<string, string>();
 
     // Robust Tag Extraction using Regex
-    // Fix: Separated tag name from attributes to allow correct backreference for closing tag.
-    const tagRegex = /<(think|act)(?:\s+type=['"](\w+)['"])?(?:\s+id=['"]([^'"]+)['"])?\s*>([\s\S]*?)<\/\1>/gi;
+    // Line-anchored to leverage "Tags MUST be on their own line" rule.
+    const tagRegex = /^<(think|act)(?:\s+type=['"](\w+)['"])?(?:\s+id=['"]([^'"]+)['"])?\s*>([\s\S]*?)^<\/\1>/gim;
 
     let match;
     while ((match = tagRegex.exec(responseText)) !== null) {
@@ -130,6 +130,72 @@ export class MainAgent extends Agent {
         this.substituteRegisters(val, registers);
       }
     }
+  }
+
+  /**
+   * Validates that the response text adheres to the strict tag-based format.
+   * Returns an error message if invalid, or null if valid (or potentially valid if unclosed).
+   * This is designed to be called during streaming.
+   */
+  public checkFormatting(text: string, isFinal: boolean = false): string | null {
+    if (!text.trim()) return null;
+
+    const lines = text.split('\n');
+    let isInsideTag = false;
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      if (isInsideTag) {
+        // Look for closing tag
+        if (trimmed.match(/^<\/(think|act)>/)) {
+          isInsideTag = false;
+          // After a closing tag on the same line, there should be no other content
+          const afterClosing = trimmed.replace(/^<\/(think|act)>/, '').trim();
+          if (afterClosing.length > 0 && !afterClosing.startsWith('<')) {
+            return `Content detected after closing tag on line ${i + 1}.`;
+          }
+          if (afterClosing.startsWith('<')) {
+            return `Multiple tags detected on line ${i + 1}. Each tag must be on its own line.`;
+          }
+        }
+      } else {
+        if (trimmed.length === 0) continue;
+
+        // Must be the start of a tag
+        if (trimmed.startsWith('<')) {
+          if (trimmed.match(/^<(think|act)/)) {
+            isInsideTag = true;
+            // If the line contains a closing tag too, it's a one-liner
+            if (trimmed.match(/<\/(think|act)>/)) {
+              isInsideTag = false;
+              const afterClosing = trimmed.replace(/^<(?:think|act)[\s\S]*?>[\s\S]*?<\/(?:think|act)>/, '').trim();
+              if (afterClosing.length > 0) {
+                return `Content detected after one-line tag on line ${i + 1}.`;
+              }
+            }
+          } else {
+            // It starts with < but not a valid tag
+            if (i === lines.length - 1) {
+              if (trimmed === '<') return null;
+              const partialMatch = trimmed.match(/^<(t|th|thi|thin|think|a|ac|act)/i);
+              if (partialMatch) return null; // Potentially valid
+            }
+            return `Invalid tag start detected on line ${i + 1}: ${trimmed}`;
+          }
+        } else {
+          // Non-empty line that doesn't start with <
+          return `Text detected outside of tags on line ${i + 1}.`;
+        }
+      }
+    }
+
+    if (isFinal && isInsideTag) {
+      return 'Response ended with an unclosed tag. All tags must be properly closed.';
+    }
+
+    return null;
   }
 
   /**
