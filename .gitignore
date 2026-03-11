@@ -1,5 +1,6 @@
 # data dir is injected from another repo
 /data
+/.env
 
 # Logs
 logs
