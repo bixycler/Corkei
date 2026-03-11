@@ -98,7 +98,7 @@ const statusDiv = document.getElementById('status');
 const chartContainer = document.getElementById('chart-container');
 
 async function loadDefaultLog() {
-  const response = await fetch('test.log');
+  const response = await fetch('./assets/test.log');
   if (!response.ok) {
     console.log('No default log found. Waiting for file upload...');
     return;

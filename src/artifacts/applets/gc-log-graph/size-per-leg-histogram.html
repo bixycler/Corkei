@@ -404,7 +404,7 @@
 
     let currentLogData = null; // Store RAW events for filtering
 
-    async function loadAndDraw(logFile = 'test-histogram.log', log = null) {
+    async function loadAndDraw(logFile = './assets/test-histogram.log', log = null) {
       try {
         if (!log && logFile) {
           const response = await fetch(logFile);

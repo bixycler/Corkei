@@ -1,17 +1,188 @@
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Log Visualizer Documentation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&display=swap"
+    rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #4a90e2;
+      --secondary-color: #f5f7fa;
+      --text-color: #333;
+      --text-light: #666;
+      --accent-color: #ff6b6b;
+      --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      --header-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background-color: var(--secondary-color);
+      color: var(--text-color);
+      line-height: 1.6;
+      margin: 0;
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 900px;
+      width: 100%;
+    }
+
+    header {
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 2.8rem;
+      margin-bottom: 0.5rem;
+      background: var(--header-gradient);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      font-weight: 700;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--text-light);
+    }
+
+    h2 {
+      font-size: 1.5rem;
+      color: #444;
+      margin-top: 0;
+      margin-bottom: 1.5rem;
+      border-bottom: 2px solid #eee;
+      padding-bottom: 0.5rem;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: var(--card-shadow);
+      padding: 2rem;
+      margin-bottom: 2rem;
+      box-sizing: border-box;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    li {
+      padding: 1rem;
+      border-radius: 8px;
+      transition: background-color 0.2s;
+      margin-bottom: 0.5rem;
+    }
+
+    li:hover {
+      background-color: #f8fbff;
+    }
+
+    .link-title {
+      display: block;
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    a {
+      color: var(--primary-color);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    a:hover {
+      color: #2b6cb0;
+    }
+
+    .description {
+      color: var(--text-light);
+      font-size: 0.95rem;
+    }
+
+    code {
+      font-family: 'JetBrains Mono', monospace;
+      background: #f1f5f9;
+      color: #475569;
+      padding: 0.1rem 0.3rem;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: #eff6ff;
+      color: var(--primary-color);
+      margin-bottom: 0.5rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+  </style>
 </head>
 
 <body>
-    <h1>Log Visualizer Documentation</h1>
-    <h2>Related Applets</h2>
-    <ul>
-        <li><a href='./size-per-leg-histogram.html'>Histogram of Number of Flight Search Results</a>: Visualizing results count distribution per journey leg count</li>
-    </ul>
-</body>
-</html>
+  <div class="container">
+    <header>
+      <h1>Log Visualizer Documentation</h1>
+      <p class="subtitle">Integration and processing tools for log analysis</p>
+    </header>
 
+    <section class="card">
+      <h2>Related Applets</h2>
+      <ul>
+        <li>
+          <span class="tag">Analysis</span>
+          <a href='./size-per-leg-histogram.html' class="link-title">Histogram of Number of Flight Search Results</a>
+          <div class="description">Visualizing results count distribution per journey leg count and GDS performance
+            analysis.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Processing Scripts</h2>
+      <p class="description"
+        style="margin-bottom: 2rem; border-left: 4px solid var(--primary-color); padding-left: 1rem;">
+        Utility scripts for pre-processing large log files before visual analysis.
+      </p>
+      <ul>
+        <li>
+          <span class="tag">Performance</span>
+          <a href="./assets/detect-gc-cms-churn.sh" class="link-title">detect-gc-cms-churn.sh</a>
+          <div class="description">
+            Detects high churn rate ParNew GCs using a sliding window calculation.
+            Implemented in <code>awk</code> for extreme performance on large log files.
+          </div>
+        </li>
+        <li>
+          <span class="tag">Log Extraction</span>
+          <a href="./assets/grep-multi-city-searches.sh" class="link-title">grep-multi-city-searches.sh</a>
+          <div class="description">
+            Extracts multi-city search requests and matches them with their corresponding response lines
+            (containing <code>lastGoodsCount</code>). Supports optional Travelport GDS (AP) filtering.
+          </div>
+        </li>
+      </ul>
+    </section>
+  </div>
+</body>
+
+</html>
