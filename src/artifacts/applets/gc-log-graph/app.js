@@ -229,8 +229,7 @@ async function processGCLog(content) {
   // Assign colors and radii based on GC type
   result.forEach(r => {
     // Check if any action indicates Concurrent cycle phases
-    const isConcurrent = r.actions.some(a =>
-      a.includes('Concurrent') || a.includes('Remark') || a.includes('Cleanup'));
+    const isConcurrent = r.isConcurrent === true;
 
     if (r.action.includes('Pause Full')) {
       r.color = CONST.colors.fullGC;
@@ -328,7 +327,23 @@ async function processGCLog(content) {
 }
 
 function parseGCLog(lines, startLine, maxEventsToParse, gcMap) {
+  let isLegacy = false;
+  for (let i = startLine; i < Math.min(startLine + 20, lines.length); i++) {
+    if (lines[i].match(/GC\(\d+\)/)) {
+      isLegacy = false; break;
+    } else if (lines[i].includes('[GC') || lines[i].includes('[CMS') || lines[i].includes('[ParNew')) {
+      isLegacy = true; break;
+    }
+  }
 
+  if (isLegacy) {
+    return parseLegacyGCLog(lines, startLine, maxEventsToParse, gcMap);
+  } else {
+    return parseG1GCLog(lines, startLine, maxEventsToParse, gcMap);
+  }
+}
+
+function parseG1GCLog(lines, startLine, maxEventsToParse, gcMap) {
   // Regex Explanation:
   // 1. Timestamp: \[(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+\+\d{4})\]
   // 2. GC ID: GC\((\d+)\)
@@ -357,11 +372,6 @@ function parseGCLog(lines, startLine, maxEventsToParse, gcMap) {
   for (; i < lines.length && eventsParsedCount < maxEventsToParse; i++) {
     const line = lines[i];
 
-    // Only process relevant lines to save time/noise
-    // but we need to capture all lines associated with an ID for the tooltip
-    const idMatch = line.match(idRegex);
-
-
     // EXTENSION PARSING HOOK
     // Give extensions a chance to parse the line even if it's not a GC line
     window.GCGraphExtensions.forEach(ext => {
@@ -370,6 +380,9 @@ function parseGCLog(lines, startLine, maxEventsToParse, gcMap) {
       }
     });
 
+    // Only process relevant lines to save time/noise
+    // but we need to capture all lines associated with an ID for the tooltip
+    const idMatch = line.match(idRegex);
     if (!idMatch) continue;
 
     const id = parseInt(idMatch[1], 10);
@@ -384,7 +397,9 @@ function parseGCLog(lines, startLine, maxEventsToParse, gcMap) {
         beforeBytes: 0,
         afterBytes: 0,
         totalBytes: 0,
-        totalDuration: 0 // Accumulate durations
+        totalDuration: 0, // Accumulate durations
+        isConcurrent: false, // Flag for concurrent events
+        isFailed: false
       });
     }
 
@@ -421,6 +436,10 @@ function parseGCLog(lines, startLine, maxEventsToParse, gcMap) {
         const actionPart = line.substring(line.indexOf('GC(') + 3 + id.toString().length + 1, memMatch.index).trim();
         if (actionPart && !record.actions.includes(actionPart)) {
           record.actions.push(actionPart);
+          const apLower = actionPart.toLowerCase();
+          if (apLower.includes('concurrent') || apLower.includes('remark') || apLower.includes('cleanup')) {
+             record.isConcurrent = true;
+          }
         }
 
         // Duration - accumulate for multi-phase GCs
@@ -435,10 +454,154 @@ function parseGCLog(lines, startLine, maxEventsToParse, gcMap) {
     }
   }
 
-  return {
-    eventsParsedCount,
-    nextLine: i
-  };
+  return { eventsParsedCount, nextLine: i };
+}
+
+function parseLegacyGCLog(lines, startLine, maxEventsToParse, gcMap) {
+  // Matches: 2025-12-13T13:18:36.630+0900: 181559.030:
+  const timeIdRegex = /(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:Z|[+-]\d{4})):\s*(\d+(?:\.\d+)?):/;
+  const memoryRegex = /(\d+(?:\.\d+)?)([KMG]B?)->(\d+(?:\.\d+)?)([KMG]B?)\((\d+(?:\.\d+)?)([KMG]B?)\)/g;
+  const singleMemoryRegex = /(\d+(?:\.\d+)?)([KMG]B?)\((\d+(?:\.\d+)?)([KMG]B?)\)/g; 
+  const durationRegex = /,\s*(\d+(?:\.\d+)?)\s*secs/g;
+  const concurrentDurationRegex = /(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)\s*secs/;
+
+  let eventsParsedCount = 0;
+  let i = startLine;
+
+  // Helper to extract first balanced bracket or the first inner bracket if imbalanced
+  function getFirstBalancedBracket(line) {
+    let startIdx = line.indexOf('[');
+    if (startIdx === -1) return { str: "", isFailed: true };
+    
+    let depth = 0;
+    for (let j = startIdx; j < line.length; j++) {
+      if (line[j] === '[') depth++;
+      else if (line[j] === ']') {
+        depth--;
+        if (depth === 0) return { str: line.substring(startIdx, j + 1), isFailed: false };
+      }
+    }
+    
+    const innerMatch = line.match(/\[([^\[\]]+)\]/);
+    return { str: innerMatch ? innerMatch[0] : "", isFailed: true };
+  }
+
+  for (; i < lines.length && eventsParsedCount < maxEventsToParse; i++) {
+    const line = lines[i];
+
+    window.GCGraphExtensions.forEach(ext => {
+      if (typeof ext.parse === 'function') ext.parse(line);
+    });
+
+    if (!line.includes('[GC') && !line.includes('[CMS') && !line.includes('[ParNew') && !line.includes('[Full GC')) {
+       continue;
+    }
+
+    const timeIdMatch = line.match(timeIdRegex);
+    if (!timeIdMatch) continue;
+
+    const timestampRaw = timeIdMatch[1];
+    const id = timeIdMatch[2]; // Using float uptime as GC ID
+
+    const { str: eventStr, isFailed: bracketFailed } = getFirstBalancedBracket(line);
+    if (!eventStr) continue;
+
+    // Detect failure keywords physically inside the text (for well-formed cascading failures)
+    const isFailed = bracketFailed || eventStr.includes('failed') || eventStr.includes('failure');
+
+    const actionsMatches = Array.from(eventStr.matchAll(/\[([^\[\]:,]+)[:|,]/g))
+      .map(m => m[1].trim());
+
+    let action = "Unknown";
+    if (eventStr.includes('promotion failed')) {
+      action = 'ParNew (promotion failed)';
+    } else if (eventStr.includes('concurrent mode failure')) {
+      action = 'CMS (concurrent mode failure)';
+    } else {
+      const filtered = actionsMatches.filter(a => {
+        const lower = a.toLowerCase();
+        return !lower.includes('gc20') && // filters GC2025-12-13...
+               !lower.includes('yg occupancy') &&
+               !lower.includes('rescan') &&
+               !lower.includes('weak refs') &&
+               !lower.includes('class unloading') &&
+               !lower.includes('scrub') &&
+               !lower.includes('cms perm') &&
+               !lower.includes('times');
+      });
+      if (filtered.length > 0) {
+        action = filtered[filtered.length - 1]; // Main event is usually the last valid one before memory
+      } else {
+        if (eventStr.includes('[Full GC')) action = 'Full GC';
+        else if (eventStr.includes('[GC')) action = 'GC';
+      }
+    }
+
+    const record = {
+      id: id,
+      rawLines: [line],
+      parsed: true,
+      timestamp: new Date(timestampRaw),
+      timestampRaw: timestampRaw,
+      actions: [action],
+      beforeBytes: 0,
+      afterBytes: 0,
+      totalBytes: 0,
+      totalDuration: 0,
+      isConcurrent: !eventStr.startsWith('[GC') && !eventStr.startsWith('[Full GC'), // Note: well-formed STW failure has valid heap info!
+      isFailed: isFailed
+    };
+
+    if (window.GCGraphConfig && !window.GCGraphConfig.detectedLogTimezone) {
+      const tzMatch = timestampRaw.match(/([+-]\d{4})$/);
+      if (tzMatch) {
+         window.GCGraphConfig.detectedLogTimezone = tzMatch[1];
+         console.log(`[app.js] Early timezone detection: ${tzMatch[1]}`);
+      }
+    }
+
+    // Top-Level Heap Detection: Sub-phases like [CMS Perm] must be stripped
+    let topLevelStr = eventStr.startsWith('[') ? eventStr.substring(1, eventStr.length - 1) : eventStr;
+    while (topLevelStr.includes('[')) {
+      const next = topLevelStr.replace(/\[[^\[\]]*\]/g, '');
+      if (next === topLevelStr) break;
+      topLevelStr = next;
+    }
+    // Clean up residual trailing commas left over from stripping inner brackets
+    topLevelStr = topLevelStr.replace(/,\s*,/g, ',');
+
+    if (record.isConcurrent) {
+       const concDurMatch = topLevelStr.match(concurrentDurationRegex);
+       if (concDurMatch) {
+          record.totalDuration = parseFloat(concDurMatch[2]) * 1000;
+       }
+    } else {
+       const durs = Array.from(topLevelStr.matchAll(durationRegex));
+       if (durs.length > 0) {
+          record.totalDuration = parseFloat(durs[durs.length - 1][1]) * 1000;
+       }
+       const memMatches = Array.from(topLevelStr.matchAll(memoryRegex));
+       if (memMatches.length > 0) {
+          const lastMem = memMatches[memMatches.length - 1];
+          record.beforeBytes = parseSize(lastMem[1], lastMem[2]);
+          record.afterBytes = parseSize(lastMem[3], lastMem[4]);
+          record.totalBytes = parseSize(lastMem[5], lastMem[6]);
+       } else {
+          const singleMemMatches = Array.from(topLevelStr.matchAll(singleMemoryRegex));
+          if (singleMemMatches.length > 0) {
+             const singleMemMatch = singleMemMatches[singleMemMatches.length - 1];
+             record.beforeBytes = parseSize(singleMemMatch[1], singleMemMatch[2]);
+             record.afterBytes = record.beforeBytes; 
+             record.totalBytes = parseSize(singleMemMatch[3], singleMemMatch[4]);
+          }
+       }
+    }
+
+    gcMap.set(id, record);
+    eventsParsedCount++;
+  }
+
+  return { eventsParsedCount, nextLine: i };
 }
 
 function parseSize(value, unit) {
@@ -567,7 +730,7 @@ function renderChart(data) {
       .y1(d => y(toGB(d.totalBytes)));
 
     chartContent.append("path")
-      .datum(data)
+      .datum(data.filter(d => !d.isConcurrent && d.totalBytes > 0))
       .attr("class", "area area-heap-total")
       .attr("d", areaTotal)
       .attr("fill", CONST.graph.areaTotal.fill)
@@ -580,7 +743,7 @@ function renderChart(data) {
       .y1(d => y(toGB(d.afterBytes)));
 
     chartContent.append("path")
-      .datum(data)
+      .datum(data.filter(d => !d.isConcurrent && d.totalBytes > 0))
       .attr("class", "area area-heap-used")
       .attr("d", areaUsed)
       .attr("fill", CONST.graph.areaUsed.fill)
@@ -593,7 +756,7 @@ function renderChart(data) {
       .y(d => y(toGB(d.totalBytes)));
 
     chartContent.append("path")
-      .datum(data)
+      .datum(data.filter(d => !d.isConcurrent && d.totalBytes > 0))
       .attr("class", "line line-heap-total")
       .attr("d", lineTotal)
       .attr("fill", "none")
@@ -605,7 +768,7 @@ function renderChart(data) {
       .y(d => y(toGB(d.afterBytes)));
 
     chartContent.append("path")
-      .datum(data)
+      .datum(data.filter(d => !d.isConcurrent && d.totalBytes > 0))
       .attr("class", "line line-heap-used")
       .attr("d", lineUsed)
       .attr("fill", "none")
@@ -628,6 +791,18 @@ function renderChart(data) {
       .attr("stroke-width", 1)
       .attr("stroke-opacity", 0.6);
   }
+
+  // --- Vertical Lines for Failed Events ---
+  chartContent.selectAll(".failed-event-line")
+    .data(data.filter(d => d.isFailed))
+    .enter().append("line")
+    .attr("class", "failed-event-line")
+    .attr("x1", d => x(d.timestamp))
+    .attr("x2", d => x(d.timestamp))
+    .attr("y1", 0)
+    .attr("y2", d => y(toGB(d.afterBytes)) - d.radius)
+    .attr("stroke", d => d.color)
+    .attr("stroke-width", 2);
 
   // --- Rate Visualization ---
   const showRates = document.getElementById('show-rates').checked;
@@ -773,7 +948,7 @@ function renderChart(data) {
     .enter().append("circle")
     .attr("class", "dot")
     .attr("cx", d => x(d.timestamp))
-    .attr("cy", d => y(toGB(d.afterBytes)))
+    .attr("cy", d => y(toGB(d.afterBytes)) - (d.isConcurrent || d.isFailed ? d.radius : 0))
     .attr("r", d => d.radius)
     .attr("fill", d => d.color)
     .attr("stroke", "#fff")
@@ -798,14 +973,14 @@ function renderChart(data) {
       tooltip.transition().duration(500).style("opacity", 0);
     })
     .on("click", function (event, d) {
-      // Trim log lines: keep only from [gc onwards
-      const trimmedLines = d.rawLines.map(line => {
-        const gcMatch = line.match(/\[gc/);
-        if (gcMatch) {
-          return line.substring(gcMatch.index);
-        }
-        return line;
-      });
+      // Break log lines by timestamp and discard them for cleaner readability
+      const processedContent = d.rawLines.map(line => {
+        // Break by internal timestamps: "[2025-12-13T13:18:55.385+0900: 181577.784:"
+        // We look for the main pattern and replace with a newline marker, then split and clean up.
+        // Pattern: Matches DateTTime+Offset: Uptime: 
+        const parts = line.split(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+(?:Z|[+-]\d{4}):\s*\d+(?:\.\d+)?:/);
+        return parts.map(p => p.trim()).filter(p => p).join('\n');
+      }).join('\n').trim();
 
       const popupContent = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
@@ -817,7 +992,7 @@ function renderChart(data) {
           Memory: ${formatBytes(d.beforeBytes)} → ${formatBytes(d.afterBytes)} / ${formatBytes(d.totalBytes)}<br/>
           Duration: <span style="color: ${d.duration > 100 ? CONST.colors.longPause : CONST.colors.shortPause};">${window.formatDurationHuman(d.duration, 'ms')}</span>
         </div>
-        <div style="font-family: monospace; font-size: 11px; white-space: pre-wrap; color: ${CONST.popup.codeColor}; background: ${CONST.popup.codeBackground}; border: ${CONST.popup.codeBorder}; padding: 10px; border-radius: 4px; max-height: 50vh; overflow-y: auto;">${escapeHtml(trimmedLines.join('\n'))}</div>
+        <div style="font-family: monospace; font-size: 11px; white-space: pre-wrap; color: ${CONST.popup.codeColor}; background: ${CONST.popup.codeBackground}; border: ${CONST.popup.codeBorder}; padding: 10px; border-radius: 4px; max-height: 50vh; overflow-y: auto;">${escapeHtml(processedContent)}</div>
       `;
 
       popup.html(popupContent).style("display", "block");
@@ -893,12 +1068,19 @@ function renderChart(data) {
 
     // Update dots
     chartContent.selectAll(".dot")
-      .attr("cx", d => x(d.timestamp));
+      .attr("cx", d => x(d.timestamp))
+      .attr("cy", d => y(toGB(d.afterBytes)) - (d.isConcurrent || d.isFailed ? d.radius : 0));
 
     // Update segments
     chartContent.selectAll(".gc-segment")
       .attr("x1", d => x(d.timestamp))
       .attr("x2", d => x(d.timestamp));
+
+    // Update failed event lines
+    chartContent.selectAll(".failed-event-line")
+      .attr("x1", d => x(d.timestamp))
+      .attr("x2", d => x(d.timestamp))
+      .attr("y2", d => y(toGB(d.afterBytes)) - d.radius);
 
     // Update rate lines if visible
     chartContent.select(".alloc-rate-line")
