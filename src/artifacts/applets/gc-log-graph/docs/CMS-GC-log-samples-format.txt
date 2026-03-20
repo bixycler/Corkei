@@ -1,0 +1,71 @@
+- Discard [Times:...]
+- concurrent: backround time CPUt/walltime, no heap size
+
+====== ERROR cases: get only first action name as special non-data event
+
+[GC
+2025-12-13T13:18:55.721+0900: 181578.120: 
+[ParNew (promotion failed): 555338K->545304K(707840K), 0.0284200 secs]
+2025-12-13T13:18:55.749+0900: 181578.149: [CMS
+2025-12-13T13:18:55.756+0900: 181578.156: [CMS-concurrent-abortable-preclean: 0.055/0.121 secs] 
+[Times: user=0.51 sys=0.00, real=0.12 secs]
+
+[GC
+2026-02-06T16:16:41.900+0900: 282421.895: 
+[ParNew (promotion failed): 441955K->441701K(707840K), 0.0195550 secs]
+2026-02-06T16:16:41.919+0900: 282421.914: [CMS
+2026-02-06T16:16:42.030+0900: 282422.025: [CMS-concurrent-mark: 0.153/0.264 secs] 
+[Times: user=0.95 sys=0.02, real=0.26 secs]
+
+[GC
+2026-02-23T22:54:26.053+0900: 905619.834: [
+ParNew (promotion failed): 503660K->503662K(707840K), 0.0071170 secs]
+2026-02-23T22:54:26.061+0900: 905619.841: [CMS
+2026-02-23T22:54:26.425+0900: 905620.205: [CMS-concurrent-sweep: 0.389/0.398 secs] 
+[Times: user=0.47 sys=0.00, real=0.40 secs]
+
+[GC
+[ParNew (promotion failed): 557703K->548840K(707840K), 0.0341030 secs]
+[CMS: 6433039K->1234045K(10243304K), 0.8458960 secs] 6990742K->1234045K(10951144K), 
+[CMS Perm : 71750K->71747K(196608K)], 
+0.8815130 secs] 
+[Times: user=0.99 sys=0.00, real=0.88 secs]
+
+====== Correct cases: check STW time & heap size (change)
+
+[GC[YG occupancy: 93657 K (707840 K)]
+2025-12-13T13:18:57.028+0900: 181579.428: [Rescan (parallel) , 0.0048510 secs]
+2025-12-13T13:18:57.033+0900: 181579.433: [weak refs processing, 0.0000240 secs]
+2025-12-13T13:18:57.033+0900: 181579.433: [class unloading, 0.0076000 secs]
+2025-12-13T13:18:57.041+0900: 181579.440: [scrub symbol table, 0.0071220 secs]
+2025-12-13T13:18:57.048+0900: 181579.447: [scrub string table, 0.0010560 secs] 
+[1 CMS-remark: 2647452K(10395648K)] 2741109K(11103488K), 0.0244950 secs] 
+[Times: user=0.06 sys=0.00, real=0.02 secs]
+
+--
+
+[GC 
+[1 CMS-initial-mark: 5316513K(10395648K)] 5620004K(11103488K), 0.0178870 secs] 
+[Times: user=0.02 sys=0.00, real=0.02 secs]
+
+---
+
+[GC
+2025-12-13T13:18:53.308+0900: 181575.707: 
+[ParNew: 659032K->65202K(707840K), 0.0319760 secs] 4171656K->3577826K(11103488K), 0.0320890 secs] 
+[Times: user=0.24 sys=0.00, real=0.04 secs]
+
+
+
+====== Successful concurrent cases: backround time CPUt/walltime, no heap size
+
+2026-02-23T22:54:25.585+0900: 905619.366: [CMS-concurrent-mark-start]
+2026-02-23T22:54:25.813+0900: 905619.593: [CMS-concurrent-mark: 0.185/0.228 secs] [Times: user=0.87 sys=0.00, real=0.22 secs]
+
+---
+
+2026-02-23T22:54:25.813+0900: 905619.593: [CMS-concurrent-preclean-start]
+2026-02-23T22:54:25.820+0900: 905619.600: [CMS-concurrent-abortable-preclean-start]
+2026-02-23T22:54:25.820+0900: 905619.600: [CMS-concurrent-preclean: 0.007/0.007 secs] [Times: user=0.02 sys=0.00, real=0.01 secs]
+
+
