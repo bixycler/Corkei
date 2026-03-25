@@ -146,6 +146,60 @@
     </header>
 
     <section class="card">
+      <h2>Architecture &amp; Design</h2>
+      <ul>
+        <li>
+          <span class="tag">Overview</span>
+          <a href="./docs/architecture.md" class="link-title">Architecture</a>
+          <div class="description">Overall system design: data flow, extension lifecycle, event model, classification,
+            rate calculation, and rendering pipeline.</div>
+        </li>
+        <li>
+          <span class="tag">Parser</span>
+          <a href="./docs/G1-GC-log-processing.md" class="link-title">G1 GC Log Processing</a>
+          <div class="description">Detailed documentation of the G1 (unified logging) parser: regex patterns, batch
+            processing, action extraction, multi-phase event handling.</div>
+        </li>
+        <li>
+          <span class="tag">Parser</span>
+          <a href="./docs/CMS-GC-log-parsing-algorithm.md" class="link-title">CMS GC Log Parsing Algorithm</a>
+          <div class="description">Legacy CMS/ParNew parser: 3-level balanced bracket regex, event classification
+            decision tree, structural action extraction.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="card">
+      <h2>Extension System</h2>
+      <ul>
+        <li>
+          <span class="tag">Config</span>
+          <a href="./docs/extension-config.md" class="link-title">Config &amp; Shared Helpers</a>
+          <div class="description"><code>GCGraphConfig</code> structure, visual constants, and shared formatting functions
+            (<code>formatResponseSize</code>, <code>formatDurationHuman</code>, <code>formatTimestampInTz</code>).</div>
+        </li>
+        <li>
+          <span class="tag">Extension</span>
+          <a href="./docs/extension-access-log.md" class="link-title">AccessLog Extension</a>
+          <div class="description">HTTP access log overlay: request parsing, top-3 coloring, sub-second distribution,
+            rolling-window RPS/Bps rate calculation, and interactive dot rendering.</div>
+        </li>
+        <li>
+          <span class="tag">Extension</span>
+          <a href="./docs/extension-service-log.md" class="link-title">ServiceLog Extension</a>
+          <div class="description">Application service call overlay: thread-based START/END state machine, processing
+            time and goods count metrics, airListSchSv GDS-specific parsing.</div>
+        </li>
+        <li>
+          <span class="tag">Extension</span>
+          <a href="./docs/extension-service-access-log.md" class="link-title">ServiceAccessLog Extension</a>
+          <div class="description">Composite extension combining AccessLog and ServiceLog with instance isolation,
+            Y-offset stacking, and config overrides.</div>
+        </li>
+      </ul>
+    </section>
+
+    <section class="card">
       <h2>Related Applets</h2>
       <ul>
         <li>
