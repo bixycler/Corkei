@@ -1,0 +1,28 @@
+2026-04-15 20:55:14
+{"ERR_MSG":"AppErrorSeverityLevel1*0 AVAIL/WL CLOSED*"}
+2026-04-15 20:55:14
+[{"marketingCarrierCode":"CM","flightNumber":803,"departureDate":"20261225","bookingClass":"W","origin":"JFK","destination":"PTY","seatNumber":0},{"marketingCarrierCode":"CM","flightNumber":159,"departureDate":"20261225","bookingClass":"W","origin":"PTY","destination":"UIO","seatNumber":0},{"marketingCarrierCode":"CM","flightNumber":153,"departureDate":"20261229","bookingClass":"T","origin":"UIO","destination":"PTY","seatNumber":0},{"marketingCarrierCode":"CM","flightNumber":813,"departureDate":"20261229","bookingClass":"T","origin":"PTY","destination":"JFK","seatNumber":0}]
+2026-04-15 20:20:25
+{"ERR_MSG":"AppErrorSeverityLevel1*0 AVAIL/WL OPEN*"}
+2026-04-15 20:20:25
+[{"marketingCarrierCode":"CX","flightNumber":539,"departureDate":"20260919","bookingClass":"Y","origin":"NGO","destination":"HKG","seatNumber":1},{"marketingCarrierCode":"CX","flightNumber":251,"departureDate":"20260919","bookingClass":"Y","origin":"HKG","destination":"LHR","seatNumber":1},{"marketingCarrierCode":"BA","flightNumber":300,"departureDate":"20260920","bookingClass":"Y","origin":"LHR","destination":"CDG","seatNumber":1},{"marketingCarrierCode":"LH","flightNumber":1027,"departureDate":"20260925","bookingClass":"M","origin":"CDG","destination":"FRA","seatNumber":1},{"marketingCarrierCode":"CX","flightNumber":288,"departureDate":"20260925","bookingClass":"H","origin":"FRA","destination":"HKG","seatNumber":1},{"marketingCarrierCode":"CX","flightNumber":530,"departureDate":"20260926","bookingClass":"H","origin":"HKG","destination":"NGO","seatNumber":1}]
+2026-04-15 19:09:13
+{"ERR_MSG":"AppErrorSeverityLevel1*0 AVAIL/WL OPEN*"}
+2026-04-15 19:09:13
+[{"marketingCarrierCode":"MU","flightNumber":515,"departureDate":"20260423","bookingClass":"I","origin":"PVG","destination":"KIX","seatNumber":0}]
+2026-04-15 17:53:11
+{"ERR_MSG":"AppErrorSeverityLevel1*UNABLE - MARKET CONNECTION UNAVAILABLE*"}
+2026-04-15 17:53:11
+[{"marketingCarrierCode":"NH","flightNumber":880,"departureDate":"20261118","bookingClass":"L","origin":"SYD","destination":"HND","seatNumber":0},{"marketingCarrierCode":"NH","flightNumber":112,"departureDate":"20261119","bookingClass":"L","origin":"HND","destination":"ORD","seatNumber":0},{"marketingCarrierCode":"NH","flightNumber":7786,"departureDate":"20261119","bookingClass":"L","origin":"ORD","destination":"BOS","seatNumber":0},{"marketingCarrierCode":"NH","flightNumber":7795,"departureDate":"20261122","bookingClass":"W","origin":"BOS","destination":"ORD","seatNumber":0},{"marketingCarrierCode":"NH","flightNumber":111,"departureDate":"20261122","bookingClass":"W","origin":"ORD","destination":"HND","seatNumber":0},{"marketingCarrierCode":"NH","flightNumber":879,"departureDate":"20261123","bookingClass":"W","origin":"HND","destination":"SYD","seatNumber":0}]
+2026-04-15 18:20:04
+{"ERR_MSG":"AppErrorSeverityLevel1*UNABLE - MARKET CONNECTION UNAVAILABLE*"}
+2026-04-15 18:20:04
+[{"marketingCarrierCode":"EY","flightNumber":801,"departureDate":"20260422","bookingClass":"Z","origin":"NRT","destination":"AUH","seatNumber":0},{"marketingCarrierCode":"EY","flightNumber":65,"departureDate":"20260423","bookingClass":"Z","origin":"AUH","destination":"LHR","seatNumber":0},{"marketingCarrierCode":"EY","flightNumber":62,"departureDate":"20260426","bookingClass":"Z","origin":"LHR","destination":"AUH","seatNumber":0},{"marketingCarrierCode":"EY","flightNumber":800,"departureDate":"20260426","bookingClass":"Z","origin":"AUH","destination":"NRT","seatNumber":0}]
+2026-04-15 17:02:24
+{"ERR_MSG":"AppErrorSeverityLevel1*0 AVAIL/WL OPEN*"}
+2026-04-15 17:02:24
+[{"marketingCarrierCode":"CI","flightNumber":223,"departureDate":"20260430","bookingClass":"K","origin":"HND","destination":"TSA","seatNumber":2},{"marketingCarrierCode":"CI","flightNumber":222,"departureDate":"20260502","bookingClass":"N","origin":"TSA","destination":"HND","seatNumber":2}]
+2026-04-15 17:20:13
+{"ERR_MSG":"AppErrorSeverityLevel1*0 AVAIL/WL OPEN*"}
+2026-04-15 17:20:13
+[{"marketingCarrierCode":"HX","flightNumber":609,"departureDate":"20260502","bookingClass":"N","origin":"NRT","destination":"HKG","seatNumber":0},{"marketingCarrierCode":"HX","flightNumber":608,"departureDate":"20260504","bookingClass":"V","origin":"HKG","destination":"NRT","seatNumber":0}]

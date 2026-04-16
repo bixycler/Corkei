@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AirAvail Reconstruct Utilities</title>
+    <style>
+        :root {
+            --bg: #121212;
+            --surface: #1e1e1e;
+            --text: #eeeeee;
+            --primary: #2962ff;
+            --primary-hover: #1565c0;
+            --border: #333333;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 2rem;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        h1 {
+            color: #fff;
+            margin-top: 0;
+            font-weight: 500;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            background-color: var(--surface);
+            color: #fff;
+            border: 1px solid var(--border);
+            padding: 1rem;
+            border-radius: 6px;
+            resize: vertical;
+            font-family: 'Courier New', Courier, monospace;
+            box-sizing: border-box;
+        }
+
+        .dropzone {
+            border: 2px dashed #444;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            border-radius: 8px;
+            background-color: var(--surface);
+            transition: all 0.2s ease;
+            color: #aaa;
+        }
+
+        .dropzone.dragover {
+            border-color: var(--primary);
+            background-color: #1a1a2e;
+            color: #fff;
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            background-color: var(--primary);
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: background-color 0.2s;
+            align-self: flex-start;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .header-action {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .header-action h3 {
+            margin: 0;
+            font-weight: 500;
+        }
+
+        .error {
+            color: #ff5252;
+            background-color: #2a1111;
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid #ff5252;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AirAvail Reconstruct</h1>
+        
+        <div id="dropzone" class="dropzone">
+            Drag & Drop <strong>.jsonl</strong> file here, or click to upload
+            <input type="file" id="fileInput" style="display: none;" accept=".jsonl,.json,.txt">
+        </div>
+        
+        <div>
+            <div class="header-action">
+                <h3>Or paste JSONL text here</h3>
+            </div>
+            <textarea id="inputText" placeholder='{"ERR_MSG":"...&#10;[{"marketingCarrierCode":"JL"...'></textarea>
+        </div>
+
+        <button id="convertBtn">Convert to XML TSV</button>
+        <div id="errorBox" class="error"></div>
+
+        <div>
+            <div class="header-action">
+                <h3>Output</h3>
+                <button id="downloadBtn" style="display: none; background-color: #00c853;">Download TSV</button>
+            </div>
+            <textarea id="outputText" readonly placeholder="Output will appear here..."></textarea>
+        </div>
+    </div>
+
+    <script type="module">
+        import { processAirAvail } from './airAvail-reconstruct.js';
+        
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const inputText = document.getElementById('inputText');
+        const convertBtn = document.getElementById('convertBtn');
+        const outputText = document.getElementById('outputText');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorBox = document.getElementById('errorBox');
+
+        // Setup File drag and drop
+        dropzone.addEventListener('click', () => fileInput.click());
+        
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+        
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+        
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files && e.target.files.length > 0) {
+                handleFile(e.target.files[0]);
+            }
+        });
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                inputText.value = e.target.result;
+                hideError();
+            };
+            reader.onerror = () => {
+                showError("Failed to read the file.");
+            };
+            reader.readAsText(file);
+        }
+
+        // Logic processing
+        convertBtn.addEventListener('click', () => {
+            hideError();
+            if (!inputText.value.trim()) {
+                showError("Please provide some JSONL input.");
+                return;
+            }
+
+            try {
+                const outTsv = processAirAvail(inputText.value);
+                if (outTsv) {
+                    outputText.value = outTsv;
+                    downloadBtn.style.display = 'block';
+                } else {
+                    showError("No valid lines converted. Please check your JSONL format.");
+                    outputText.value = '';
+                    downloadBtn.style.display = 'none';
+                }
+            } catch (err) {
+                showError('Error during transformation: ' + err.message);
+                outputText.value = '';
+                downloadBtn.style.display = 'none';
+            }
+        });
+
+        // Download TSV
+        downloadBtn.addEventListener('click', () => {
+            const blob = new Blob([outputText.value], { type: 'text/tab-separated-values' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'airAvail-reconstruct.tsv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        function showError(msg) {
+            errorBox.textContent = msg;
+            errorBox.style.display = 'block';
+        }
+
+        function hideError() {
+            errorBox.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
